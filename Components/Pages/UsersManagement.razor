@@ -1,0 +1,152 @@
+﻿@page "/users-management"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<h2>Gestion des utilisateurs</h2>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (users == null)
+{
+    <p>Chargement...</p>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Nom</th>
+                <th>Courriel</th>
+                <th>Rôle</th>
+                <th>Changer rôle</th>
+                <th>Actif</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.Nom</td>
+                    <td>@user.Email</td>
+                    <td>@user.Role</td>
+
+                    <td>
+                        <select class="form-select" @bind="user.Role">
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="ENSEIGNANT">ENSEIGNANT</option>
+                            <option value="ELEVE">ELEVE</option>
+                        </select>
+
+                        <button class="btn btn-primary mt-2" @onclick="() => ChangeRole(user)">
+                            Modifier
+                        </button>
+                    </td>
+
+                    <td>@(user.IsActive ? "Oui" : "Non")</td>
+
+                    <td>
+                        <button class="btn btn-warning" @onclick="() => ToggleActive(user.Id)">
+                            @(user.IsActive ? "Désactiver" : "Activer")
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<button class="btn btn-secondary" @onclick="BackDashboard">
+    Retour dashboard
+</button>
+
+@code {
+    private List<UserItem>? users;
+    private string errorMessage = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var role = await JS.InvokeAsync<string>("localStorage.getItem", "role");
+
+            if (role != "ADMIN")
+            {
+                Navigation.NavigateTo("/login", true);
+                return;
+            }
+
+            await LoadUsers();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadUsers()
+    {
+        users = await Http.GetFromJsonAsync<List<UserItem>>("api/users");
+    }
+
+    private async Task ToggleActive(int id)
+    {
+        errorMessage = "";
+
+        var response = await Http.PostAsync($"api/users/{id}/toggle-active", null);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            errorMessage = "Impossible de modifier ce compte.";
+            return;
+        }
+
+        await LoadUsers();
+    }
+
+    private async Task ChangeRole(UserItem user)
+    {
+        errorMessage = "";
+
+        var request = new ChangeRoleRequest
+        {
+            Role = user.Role
+        };
+
+        var response = await Http.PostAsJsonAsync(
+            $"api/users/{user.Id}/change-role",
+            request
+        );
+
+        if (!response.IsSuccessStatusCode)
+        {
+            errorMessage = "Impossible de modifier le rôle.";
+            return;
+        }
+
+        await LoadUsers();
+    }
+
+    private void BackDashboard()
+    {
+        Navigation.NavigateTo("/dashboard-admin");
+    }
+
+    public class UserItem
+    {
+        public int Id { get; set; }
+        public string Nom { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+
+    public class ChangeRoleRequest
+    {
+        public string Role { get; set; } = "";
+    }
+}

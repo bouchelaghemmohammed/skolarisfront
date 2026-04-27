@@ -1,0 +1,93 @@
+﻿@page "/login"
+@using Skolaris.Client.Components.Layout
+@layout LoginLayout
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="login-page">
+    <div class="login-card">
+        <h2>Skolaris</h2>
+        <h1>Connexion</h1>
+
+        <EditForm Model="loginModel" OnValidSubmit="SeConnecter">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label>Email</label>
+                <InputText class="form-control" @bind-Value="loginModel.Email" />
+                <ValidationMessage For="@(() => loginModel.Email)" />
+            </div>
+
+            <div class="form-group">
+                <label>Mot de passe</label>
+                <InputText type="password" class="form-control" @bind-Value="loginModel.Password" />
+                <ValidationMessage For="@(() => loginModel.Password)" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="error-message">@errorMessage</div>
+            }
+
+            <button type="submit" class="btn-login">
+                Se connecter
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new();
+    private string errorMessage = "";
+
+    private async Task SeConnecter()
+    {
+        errorMessage = "";
+
+        var response = await Http.PostAsJsonAsync("api/auth/login", loginModel);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            errorMessage = "Courriel ou mot de passe invalide.";
+            return;
+        }
+
+        var user = await response.Content.ReadFromJsonAsync<UserResponse>();
+
+        if (user == null)
+        {
+            errorMessage = "Erreur de connexion.";
+            return;
+        }
+
+        await JS.InvokeVoidAsync("localStorage.setItem", "role", user.Role);
+        await JS.InvokeVoidAsync("localStorage.setItem", "nom", user.Nom);
+
+        if (user.Role == "ADMIN")
+            Navigation.NavigateTo("/dashboard-admin");
+        else if (user.Role == "ENSEIGNANT")
+            Navigation.NavigateTo("/dashboard-enseignant");
+        else if (user.Role == "ELEVE")
+            Navigation.NavigateTo("/dashboard-eleve");
+    }
+
+    public class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Email obligatoire.")]
+        public string Email { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Mot de passe obligatoire.")]
+        public string Password { get; set; } = "";
+    }
+
+    public class UserResponse
+    {
+        public int Id { get; set; }
+        public string Nom { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+    }
+}

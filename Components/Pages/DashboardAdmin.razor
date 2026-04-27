@@ -1,0 +1,101 @@
+﻿@page "/dashboard-admin"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<h2>Dashboard Admin</h2>
+
+@if (stats == null)
+{
+    <p>Chargement...</p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card p-3">
+                <h5>Total utilisateurs</h5>
+                <h2>@stats.TotalUsers</h2>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card p-3">
+                <h5>Admins</h5>
+                <h2>@stats.TotalAdmins</h2>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card p-3">
+                <h5>Enseignants</h5>
+                <h2>@stats.TotalEnseignants</h2>
+            </div>
+        </div>
+
+        <div class="col-md-4 mt-3">
+            <div class="card p-3">
+                <h5>Élèves</h5>
+                <h2>@stats.TotalEleves</h2>
+            </div>
+        </div>
+
+        <div class="col-md-4 mt-3">
+            <div class="card p-3">
+                <h5>Actifs</h5>
+                <h2>@stats.ActiveUsers</h2>
+            </div>
+        </div>
+
+        <div class="col-md-4 mt-3">
+            <div class="card p-3">
+                <h5>Désactivés</h5>
+                <h2>@stats.InactiveUsers</h2>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="mt-4">
+    <button class="btn btn-primary" @onclick="GoUsers">
+        Gérer les utilisateurs
+    </button>
+</div>
+
+@code {
+    private DashboardStats? stats;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var role = await JS.InvokeAsync<string>("localStorage.getItem", "role");
+
+            if (role != "ADMIN")
+            {
+                Navigation.NavigateTo("/login", true);
+                return;
+            }
+
+            stats = await Http.GetFromJsonAsync<DashboardStats>("api/dashboard/admin-stats");
+            StateHasChanged();
+        }
+    }
+
+    private void GoUsers()
+    {
+        Navigation.NavigateTo("/users-management");
+    }
+
+    public class DashboardStats
+    {
+        public int TotalUsers { get; set; }
+        public int TotalAdmins { get; set; }
+        public int TotalEnseignants { get; set; }
+        public int TotalEleves { get; set; }
+        public int ActiveUsers { get; set; }
+        public int InactiveUsers { get; set; }
+    }
+}
