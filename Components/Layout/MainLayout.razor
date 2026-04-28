@@ -1,32 +1,51 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<div class="page">
-    <div class="sidebar">
+<div class="sk-layout">
+    <aside class="sk-sidebar">
         <NavMenu />
-    </div>
+    </aside>
 
-    <main>
-        <div class="top-row px-4">
-            <button type="button" class="btn btn-danger" @onclick="Logout">
-                Déconnexion
-            </button>
-        </div>
+    <div class="sk-main-wrapper">
+        <header class="sk-topbar">
+            <div class="sk-topbar-left">
+                @if (!string.IsNullOrEmpty(nomUtilisateur))
+                {
+                    <span class="sk-topbar-user">@nomUtilisateur</span>
+                }
+            </div>
+            <div class="sk-topbar-right">
+                <button type="button" class="sk-btn-logout" @onclick="Logout">
+                    Déconnexion
+                </button>
+            </div>
+        </header>
 
-        <article class="content px-4">
+        <main class="sk-content">
             @Body
-        </article>
-    </main>
+        </main>
+    </div>
 </div>
 
 @code {
+    private string nomUtilisateur = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            nomUtilisateur = await JS.InvokeAsync<string>("localStorage.getItem", "nom") ?? "";
+            StateHasChanged();
+        }
+    }
+
     private async Task Logout()
     {
         await JS.InvokeVoidAsync("localStorage.removeItem", "role");
         await JS.InvokeVoidAsync("localStorage.removeItem", "nom");
-
+        await JS.InvokeVoidAsync("localStorage.removeItem", "userId");
         Navigation.NavigateTo("/login", true);
     }
 }

@@ -75,14 +75,6 @@ else
     {
         if (firstRender)
         {
-            var role = await JS.InvokeAsync<string>("localStorage.getItem", "role");
-
-            if (role != "ADMIN")
-            {
-                Navigation.NavigateTo("/login", true);
-                return;
-            }
-
             await LoadUsers();
             StateHasChanged();
         }

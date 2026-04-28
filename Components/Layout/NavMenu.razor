@@ -1,40 +1,49 @@
-﻿@inject NavigationManager Navigation
+@inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" @onclick="GoHome">
-            Skolaris
-        </a>
-    </div>
+<div class="sk-sidebar-brand" @onclick="GoHome">
+    <div class="sk-sidebar-logo">S</div>
+    <span class="sk-sidebar-name">Skolaris</span>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<nav class="sk-sidebar-nav">
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
+    <div class="sk-nav-item" @onclick="GoHome">
+        <span class="sk-nav-icon">🏠</span>
+        <span>Accueil</span>
+    </div>
 
-        <!-- HOME -->
-        <div class="nav-item px-3">
-            <a class="nav-link" @onclick="GoHome">
-                <span class="bi bi-house-door-fill-nav-menu"></span>
-                Home
-            </a>
+    @if (role == "ADMIN")
+    {
+        <div class="sk-nav-section">Administration</div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/users-management")'>
+            <span class="sk-nav-icon">👥</span>
+            <span>Utilisateurs</span>
         </div>
 
-        <!-- ADMIN SEULEMENT -->
-        @if (role == "ADMIN")
-        {
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="users-management">
-                    <span class="bi bi-people-fill"></span>
-                    Gérer les utilisateurs
-                </NavLink>
-            </div>
-        }
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/etablissements")'>
+            <span class="sk-nav-icon">🏫</span>
+            <span>Établissements</span>
+        </div>
 
-    </nav>
-</div>
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/sessions")'>
+            <span class="sk-nav-icon">📅</span>
+            <span>Sessions</span>
+        </div>
+    }
+
+    @if (role == "ELEVE")
+    {
+        <div class="sk-nav-section">Mon espace</div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/dossier-academique")'>
+            <span class="sk-nav-icon">📂</span>
+            <span>Dossier académique</span>
+        </div>
+    }
+
+</nav>
 
 @code {
     private string role = "";
