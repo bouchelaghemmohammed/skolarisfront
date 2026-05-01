@@ -1,0 +1,228 @@
+@page "/etablissements"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="sk-page-header">
+    <h2 class="sk-page-title">Établissements scolaires</h2>
+    <button class="sk-btn sk-btn-primary" @onclick="OpenCreate">+ Nouvel établissement</button>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="sk-alert @(isError ? "sk-alert-danger" : "sk-alert-success")">@message</div>
+}
+
+@if (etablissements == null)
+{
+    <div class="sk-loading">Chargement...</div>
+}
+else if (!etablissements.Any())
+{
+    <div class="sk-empty">Aucun établissement enregistré. Créez-en un pour commencer.</div>
+}
+else
+{
+    <div class="sk-table-wrapper">
+        <table class="sk-table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Adresse</th>
+                    <th>Téléphone</th>
+                    <th>Courriel</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in etablissements)
+                {
+                    <tr>
+                        <td><strong>@e.Nom</strong></td>
+                        <td>@e.Adresse</td>
+                        <td>@(e.Telephone ?? "—")</td>
+                        <td>@(e.Email ?? "—")</td>
+                        <td>
+                            <span class="sk-badge @(e.IsActive ? "sk-badge-active" : "sk-badge-inactive")">
+                                @(e.IsActive ? "Actif" : "Inactif")
+                            </span>
+                        </td>
+                        <td class="sk-actions">
+                            <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="() => OpenEdit(e)">Modifier</button>
+                            <button class="sk-btn sk-btn-sm @(e.IsActive ? "sk-btn-warning" : "sk-btn-success")"
+                                    @onclick="() => ToggleActive(e.Id)">
+                                @(e.IsActive ? "Désactiver" : "Activer")
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal Formulaire -->
+@if (showForm)
+{
+    <div class="sk-modal-overlay">
+        <div class="sk-modal">
+            <div class="sk-modal-header">
+                <h3>@(editId == null ? "Nouvel établissement" : "Modifier l'établissement")</h3>
+                <button class="sk-modal-close" @onclick="CloseForm">✕</button>
+            </div>
+            <div class="sk-modal-body">
+                <div class="sk-form-group">
+                    <label>Nom de l'établissement *</label>
+                    <input class="sk-input" @bind="form.Nom" placeholder="Ex: École Primaire Saint-Jean" />
+                </div>
+                <div class="sk-form-group">
+                    <label>Adresse *</label>
+                    <input class="sk-input" @bind="form.Adresse" placeholder="123 rue des Érables, Montréal" />
+                </div>
+                <div class="sk-form-group">
+                    <label>Téléphone</label>
+                    <input class="sk-input" @bind="form.Telephone" placeholder="514-555-0000" />
+                </div>
+                <div class="sk-form-group">
+                    <label>Courriel</label>
+                    <input class="sk-input" @bind="form.Email" placeholder="info@ecole.ca" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="sk-alert sk-alert-danger">@formError</div>
+                }
+            </div>
+            <div class="sk-modal-footer">
+                <button class="sk-btn sk-btn-outline" @onclick="CloseForm">Annuler</button>
+                <button class="sk-btn sk-btn-primary" @onclick="SaveForm">
+                    @(editId == null ? "Créer" : "Enregistrer")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick="BackDashboard">← Retour au tableau de bord</button>
+</div>
+
+@code {
+    private List<EtablissementItem>? etablissements;
+    private string message = "";
+    private bool isError = false;
+    private bool showForm = false;
+    private int? editId = null;
+    private string formError = "";
+    private EtablissementForm form = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        etablissements = await Http.GetFromJsonAsync<List<EtablissementItem>>("api/etablissements");
+    }
+
+    private void OpenCreate()
+    {
+        editId = null;
+        form = new();
+        formError = "";
+        showForm = true;
+    }
+
+    private void OpenEdit(EtablissementItem e)
+    {
+        editId = e.Id;
+        form = new EtablissementForm
+        {
+            Nom = e.Nom,
+            Adresse = e.Adresse,
+            Telephone = e.Telephone ?? "",
+            Email = e.Email ?? ""
+        };
+        formError = "";
+        showForm = true;
+    }
+
+    private void CloseForm() => showForm = false;
+
+    private async Task SaveForm()
+    {
+        if (string.IsNullOrWhiteSpace(form.Nom) || string.IsNullOrWhiteSpace(form.Adresse))
+        {
+            formError = "Le nom et l'adresse sont obligatoires.";
+            return;
+        }
+
+        var payload = new
+        {
+            form.Nom,
+            form.Adresse,
+            Telephone = string.IsNullOrWhiteSpace(form.Telephone) ? null : form.Telephone,
+            Email = string.IsNullOrWhiteSpace(form.Email) ? null : form.Email
+        };
+
+        HttpResponseMessage response;
+        if (editId == null)
+            response = await Http.PostAsJsonAsync("api/etablissements", payload);
+        else
+            response = await Http.PutAsJsonAsync($"api/etablissements/{editId}", payload);
+
+        if (response.IsSuccessStatusCode)
+        {
+            message = editId == null ? "Établissement créé avec succès." : "Établissement mis à jour.";
+            isError = false;
+            showForm = false;
+            await LoadData();
+        }
+        else
+        {
+            formError = "Une erreur est survenue.";
+        }
+    }
+
+    private async Task ToggleActive(int id)
+    {
+        var response = await Http.PostAsync($"api/etablissements/{id}/toggle-active", null);
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadData();
+        }
+        else
+        {
+            message = "Impossible de modifier le statut.";
+            isError = true;
+        }
+    }
+
+    private void BackDashboard() => Navigation.NavigateTo("/dashboard-admin");
+
+    public class EtablissementItem
+    {
+        public int Id { get; set; }
+        public string Nom { get; set; } = "";
+        public string Adresse { get; set; } = "";
+        public string? Telephone { get; set; }
+        public string? Email { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    public class EtablissementForm
+    {
+        public string Nom { get; set; } = "";
+        public string Adresse { get; set; } = "";
+        public string Telephone { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+}

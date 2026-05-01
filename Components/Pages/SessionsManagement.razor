@@ -1,0 +1,379 @@
+@page "/sessions"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="sk-page-header">
+    <h2 class="sk-page-title">Sessions académiques</h2>
+    <button class="sk-btn sk-btn-primary" @onclick="OpenCreate">+ Nouvelle session</button>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="sk-alert @(isError ? "sk-alert-danger" : "sk-alert-success")">@message</div>
+}
+
+<!-- Filtre par établissement -->
+@if (ecoles != null && ecoles.Any())
+{
+    <div class="sk-filter-bar">
+        <label>Établissement :</label>
+        <select class="sk-select" @bind="filtreEcoleId" @bind:after="FiltrerSessions">
+            <option value="0">Tous</option>
+            @foreach (var e in ecoles)
+            {
+                <option value="@e.Id">@e.Nom</option>
+            }
+        </select>
+    </div>
+}
+
+@if (sessions == null)
+{
+    <div class="sk-loading">Chargement...</div>
+}
+else if (!sessionsFiltrees.Any())
+{
+    <div class="sk-empty">Aucune session trouvée.</div>
+}
+else
+{
+    <div class="sk-table-wrapper">
+        <table class="sk-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Libellé</th>
+                    <th>Année scolaire</th>
+                    <th>Établissement</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in sessionsFiltrees)
+                {
+                    <tr>
+                        <td>
+                            <span class="sk-session-badge @GetSessionClass(s.Type)">@s.Type</span>
+                        </td>
+                        <td>@s.Libelle</td>
+                        <td>@s.AnneeLibelle</td>
+                        <td>@s.EtablissementNom</td>
+                        <td>
+                            <span class="sk-badge @(s.IsActive ? "sk-badge-active" : "sk-badge-inactive")">
+                                @(s.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </td>
+                        <td class="sk-actions">
+                            <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="() => OpenEdit(s)">Modifier</button>
+                            <button class="sk-btn sk-btn-sm sk-btn-danger" @onclick="() => ConfirmDelete(s.IdSession)">Supprimer</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Modal Formulaire -->
+@if (showForm)
+{
+    <div class="sk-modal-overlay">
+        <div class="sk-modal">
+            <div class="sk-modal-header">
+                <h3>@(editId == null ? "Nouvelle session" : "Modifier la session")</h3>
+                <button class="sk-modal-close" @onclick="CloseForm">✕</button>
+            </div>
+            <div class="sk-modal-body">
+
+                @if (editId == null)
+                {
+                    <!-- Création : sélection établissement → année scolaire -->
+                    <div class="sk-form-group">
+                        <label>Établissement *</label>
+                        <select class="sk-input" @bind="form.IdEcole" @bind:after="OnEcoleChanged">
+                            <option value="0">— Choisir —</option>
+                            @if (ecoles != null)
+                            {
+                                @foreach (var e in ecoles.Where(x => x.IsActive))
+                                {
+                                    <option value="@e.Id">@e.Nom</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <div class="sk-form-group">
+                        <label>Année scolaire *</label>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <select class="sk-input" @bind="form.IdAnnee" style="flex:1;">
+                                <option value="0">— Choisir —</option>
+                                @foreach (var a in anneesFiltrees)
+                                {
+                                    <option value="@a.IdAnnee">@a.Libelle</option>
+                                }
+                            </select>
+                            <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="OpenAnneeForm" type="button">+ Nouvelle</button>
+                        </div>
+                    </div>
+                }
+
+                <div class="sk-form-group">
+                    <label>Type de session *</label>
+                    <select class="sk-input" @bind="form.Type">
+                        <option value="">— Choisir —</option>
+                        <option value="Automne">Automne</option>
+                        <option value="Hiver">Hiver</option>
+                        <option value="Ete">Été</option>
+                    </select>
+                </div>
+
+                <div class="sk-form-group">
+                    <label>Libellé *</label>
+                    <input class="sk-input" @bind="form.Libelle" placeholder="Ex: Automne 2024" />
+                </div>
+
+                @if (editId != null)
+                {
+                    <div class="sk-form-group">
+                        <label>
+                            <input type="checkbox" @bind="form.IsActive" style="margin-right:8px;" />
+                            Session active
+                        </label>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="sk-alert sk-alert-danger">@formError</div>
+                }
+            </div>
+            <div class="sk-modal-footer">
+                <button class="sk-btn sk-btn-outline" @onclick="CloseForm">Annuler</button>
+                <button class="sk-btn sk-btn-primary" @onclick="SaveForm">
+                    @(editId == null ? "Créer" : "Enregistrer")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal Nouvelle Année Scolaire -->
+@if (showAnneeForm)
+{
+    <div class="sk-modal-overlay" style="z-index:1100;">
+        <div class="sk-modal" style="max-width:380px;">
+            <div class="sk-modal-header">
+                <h3>Nouvelle année scolaire</h3>
+                <button class="sk-modal-close" @onclick="() => showAnneeForm = false">✕</button>
+            </div>
+            <div class="sk-modal-body">
+                <div class="sk-form-group">
+                    <label>Libellé *</label>
+                    <input class="sk-input" @bind="nouvelleAnneeLibelle" placeholder="Ex: 2024-2025" />
+                </div>
+            </div>
+            <div class="sk-modal-footer">
+                <button class="sk-btn sk-btn-outline" @onclick="() => showAnneeForm = false">Annuler</button>
+                <button class="sk-btn sk-btn-primary" @onclick="SaveAnnee">Créer</button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick="BackDashboard">← Retour au tableau de bord</button>
+</div>
+
+@code {
+    private List<SessionItem>? sessions;
+    private List<SessionItem> sessionsFiltrees = new();
+    private List<EcoleItem>? ecoles;
+    private List<AnneeItem> anneesFiltrees = new();
+    private string message = "";
+    private bool isError = false;
+    private bool showForm = false;
+    private bool showAnneeForm = false;
+    private int? editId = null;
+    private string formError = "";
+    private SessionForm form = new();
+    private int filtreEcoleId = 0;
+    private string nouvelleAnneeLibelle = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        sessions = await Http.GetFromJsonAsync<List<SessionItem>>("api/sessions");
+        ecoles = await Http.GetFromJsonAsync<List<EcoleItem>>("api/etablissements");
+        FiltrerSessions();
+    }
+
+    private void FiltrerSessions()
+    {
+        if (sessions == null) return;
+        sessionsFiltrees = filtreEcoleId == 0
+            ? sessions
+            : sessions.Where(s => s.EtablissementNom == ecoles?.FirstOrDefault(e => e.Id == filtreEcoleId)?.Nom).ToList();
+    }
+
+    private string GetSessionClass(string type) => type switch
+    {
+        "Automne" => "session-automne",
+        "Hiver" => "session-hiver",
+        "Ete" => "session-ete",
+        _ => ""
+    };
+
+    private void OpenCreate()
+    {
+        editId = null;
+        form = new();
+        anneesFiltrees = new();
+        formError = "";
+        showForm = true;
+    }
+
+    private void OpenEdit(SessionItem s)
+    {
+        editId = s.IdSession;
+        form = new SessionForm
+        {
+            Libelle = s.Libelle,
+            Type = s.Type,
+            IsActive = s.IsActive
+        };
+        formError = "";
+        showForm = true;
+    }
+
+    private void CloseForm() => showForm = false;
+
+    private async Task OnEcoleChanged()
+    {
+        if (form.IdEcole == 0) { anneesFiltrees = new(); return; }
+        var annees = await Http.GetFromJsonAsync<List<AnneeItem>>($"api/annees/ecole/{form.IdEcole}");
+        anneesFiltrees = annees ?? new();
+    }
+
+    private void OpenAnneeForm()
+    {
+        if (form.IdEcole == 0) { formError = "Sélectionnez d'abord un établissement."; return; }
+        nouvelleAnneeLibelle = "";
+        showAnneeForm = true;
+    }
+
+    private async Task SaveAnnee()
+    {
+        if (string.IsNullOrWhiteSpace(nouvelleAnneeLibelle)) return;
+        var resp = await Http.PostAsJsonAsync("api/annees", new { Libelle = nouvelleAnneeLibelle, IdEcole = form.IdEcole });
+        if (resp.IsSuccessStatusCode)
+        {
+            showAnneeForm = false;
+            await OnEcoleChanged();
+            var created = await resp.Content.ReadFromJsonAsync<AnneeItem>();
+            if (created != null) form.IdAnnee = created.IdAnnee;
+        }
+    }
+
+    private async Task SaveForm()
+    {
+        if (string.IsNullOrWhiteSpace(form.Libelle) || string.IsNullOrWhiteSpace(form.Type))
+        {
+            formError = "Le libellé et le type sont obligatoires.";
+            return;
+        }
+
+        HttpResponseMessage response;
+
+        if (editId == null)
+        {
+            if (form.IdAnnee == 0) { formError = "Sélectionnez une année scolaire."; return; }
+            response = await Http.PostAsJsonAsync("api/sessions", new
+            {
+                form.Libelle,
+                form.Type,
+                form.IdAnnee
+            });
+        }
+        else
+        {
+            response = await Http.PutAsJsonAsync($"api/sessions/{editId}", new
+            {
+                form.Libelle,
+                form.Type,
+                form.IsActive
+            });
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            message = editId == null ? "Session créée avec succès." : "Session mise à jour.";
+            isError = false;
+            showForm = false;
+            await LoadData();
+        }
+        else
+        {
+            var err = await response.Content.ReadAsStringAsync();
+            formError = string.IsNullOrWhiteSpace(err) ? "Une erreur est survenue." : err;
+        }
+    }
+
+    private async Task ConfirmDelete(int id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Supprimer cette session ?");
+        if (!confirmed) return;
+
+        var resp = await Http.DeleteAsync($"api/sessions/{id}");
+        if (resp.IsSuccessStatusCode) { message = "Session supprimée."; isError = false; await LoadData(); }
+        else { message = "Impossible de supprimer."; isError = true; }
+    }
+
+    private void BackDashboard() => Navigation.NavigateTo("/dashboard-admin");
+
+    public class SessionItem
+    {
+        public int IdSession { get; set; }
+        public string Libelle { get; set; } = "";
+        public string Type { get; set; } = "";
+        public bool IsActive { get; set; }
+        public int IdAnnee { get; set; }
+        public string AnneeLibelle { get; set; } = "";
+        public int EtablissementId { get; set; }
+        public string EtablissementNom { get; set; } = "";
+    }
+
+    public class EcoleItem
+    {
+        public int Id { get; set; }
+        public string Nom { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+
+    public class AnneeItem
+    {
+        public int IdAnnee { get; set; }
+        public string Libelle { get; set; } = "";
+        public int IdEcole { get; set; }
+    }
+
+    public class SessionForm
+    {
+        public string Libelle { get; set; } = "";
+        public string Type { get; set; } = "";
+        public int IdEcole { get; set; } = 0;
+        public int IdAnnee { get; set; } = 0;
+        public bool IsActive { get; set; } = true;
+    }
+}

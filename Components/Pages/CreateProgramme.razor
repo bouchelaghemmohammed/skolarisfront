@@ -1,0 +1,57 @@
+﻿@page "/admin/programmes/create"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+
+<h3>Créer un programme</h3>
+
+<div>
+    <label>Nom</label>
+    <input class="form-control" @bind="programme.Nom" placeholder="Nom du programme" />
+</div>
+
+<br />
+
+<div>
+    <label>Description</label>
+    <input class="form-control" @bind="programme.Description" placeholder="Description" />
+</div>
+
+<br />
+
+<button class="btn btn-primary" @onclick="Create">
+    Créer
+</button>
+
+<button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/admin/programmes")'>
+    Retour
+</button>
+
+<p>@message</p>
+
+@code {
+    private Programme programme = new();
+    private string message = "";
+
+    private async Task Create()
+    {
+        var res = await Http.PostAsJsonAsync("api/Programme", programme);
+
+        if (res.IsSuccessStatusCode)
+        {
+            message = "Programme créé avec succès.";
+            Navigation.NavigateTo("/admin/programmes");
+        }
+        else
+        {
+            var erreur = await res.Content.ReadAsStringAsync();
+            message = $"Erreur : {erreur}";
+        }
+    }
+
+    public class Programme
+    {
+        public string Nom { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+}

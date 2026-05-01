@@ -1,0 +1,112 @@
+﻿@page "/admin/absences"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using System.Net.Http.Json
+
+<h3>Liste des absences</h3>
+
+<button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/admin/absences/create")'>
+    ➕ Créer une absence
+</button>
+
+<br />
+<br />
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
+
+@if (absences == null)
+{
+    <p>Chargement...</p>
+}
+else if (!absences.Any())
+{
+    <p>Aucune absence trouvée</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Statut</th>
+                <th>Date</th>
+                <th>ID Élève</th>
+                <th>ID Cours offert</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var a in absences)
+            {
+                <tr>
+                    <td>@a.IdAbsence</td>
+                    <td>@a.Type</td>
+                    <td>@a.Statut</td>
+                    <td>@a.DateAbsence.ToString("yyyy-MM-dd")</td>
+                    <td>@a.IdEleve</td>
+                    <td>@a.IdCoursOffert</td>
+                    <td>
+                        <button class="btn btn-danger" @onclick="() => DeleteAbsence(a.IdAbsence)">
+                            🗑️ Supprimer
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Absence>? absences;
+    private string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerAbsences();
+    }
+
+    private async Task ChargerAbsences()
+    {
+        absences = await Http.GetFromJsonAsync<List<Absence>>("api/absences");
+    }
+
+    private async Task DeleteAbsence(int id)
+    {
+        bool confirmation = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Voulez-vous vraiment supprimer cette absence ?"
+        );
+
+        if (!confirmation)
+            return;
+
+        var res = await Http.DeleteAsync($"api/absences/{id}");
+
+        if (res.IsSuccessStatusCode)
+        {
+            message = "Absence supprimée avec succès.";
+            await ChargerAbsences();
+        }
+        else
+        {
+            var erreur = await res.Content.ReadAsStringAsync();
+            message = $"Erreur suppression : {erreur}";
+        }
+    }
+
+    public class Absence
+    {
+        public int IdAbsence { get; set; }
+        public string Type { get; set; } = "";
+        public string Statut { get; set; } = "";
+        public DateTime DateAbsence { get; set; }
+        public int IdEleve { get; set; }
+        public int IdCoursOffert { get; set; }
+    }
+}

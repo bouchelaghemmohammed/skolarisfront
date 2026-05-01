@@ -1,0 +1,68 @@
+﻿@page "/eleve/absences"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@using System.Net.Http.Json
+
+<h3>Mes absences</h3>
+
+@if (absences == null)
+{
+    <p>Chargement...</p>
+}
+else if (!absences.Any())
+{
+    <p>Aucune absence trouvée</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Statut</th>
+                <th>Date</th>
+                <th>ID Cours offert</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in absences)
+            {
+                <tr>
+                    <td>@a.Type</td>
+                    <td>@a.Statut</td>
+                    <td>@a.DateAbsence.ToString("yyyy-MM-dd")</td>
+                    <td>@a.IdCoursOffert</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Absence>? absences;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var idUser = await JS.InvokeAsync<string>("localStorage.getItem", "idUtilisateur");
+
+            if (!string.IsNullOrEmpty(idUser))
+                absences = await Http.GetFromJsonAsync<List<Absence>>($"api/absences/user/{idUser}");
+            else
+                absences = new();
+
+            StateHasChanged();
+        }
+    }
+
+    public class Absence
+    {
+        public int IdAbsence { get; set; }
+        public string Type { get; set; } = "";
+        public string Statut { get; set; } = "";
+        public DateTime DateAbsence { get; set; }
+        public int IdEleve { get; set; }
+        public int IdCoursOffert { get; set; }
+    }
+}

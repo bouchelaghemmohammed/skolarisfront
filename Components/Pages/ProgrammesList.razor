@@ -1,0 +1,103 @@
+﻿@page "/admin/programmes"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using System.Net.Http.Json
+
+<h3>Liste des programmes</h3>
+
+<button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/admin/programmes/create")'>
+    ➕ Créer un programme
+</button>
+
+<br />
+<br />
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p>@message</p>
+}
+
+@if (programmes == null)
+{
+    <p>Chargement...</p>
+}
+else if (!programmes.Any())
+{
+    <p>Aucun programme trouvé</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nom</th>
+                <th>Description</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var p in programmes)
+            {
+                <tr>
+                    <td>@p.IdProgramme</td>
+                    <td>@p.Nom</td>
+                    <td>@p.Description</td>
+                    <td>
+                        <button class="btn btn-danger" @onclick="() => DeleteProgramme(p.IdProgramme)">
+                            🗑️ Supprimer
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Programme>? programmes;
+    private string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerProgrammes();
+    }
+
+    private async Task ChargerProgrammes()
+    {
+        programmes = await Http.GetFromJsonAsync<List<Programme>>("api/Programme");
+    }
+
+    private async Task DeleteProgramme(int id)
+    {
+        bool confirmation = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Voulez-vous vraiment supprimer ce programme ?"
+        );
+
+        if (!confirmation)
+            return;
+
+        var res = await Http.DeleteAsync($"api/Programme/{id}");
+
+        if (res.IsSuccessStatusCode)
+        {
+            message = "Programme supprimé avec succès.";
+            await ChargerProgrammes();
+        }
+        else
+        {
+            var erreur = await res.Content.ReadAsStringAsync();
+            message = $"Erreur lors de la suppression : {erreur}";
+        }
+    }
+
+    public class Programme
+    {
+        public int IdProgramme { get; set; }
+        public string Nom { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+}

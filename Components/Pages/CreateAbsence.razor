@@ -1,0 +1,80 @@
+﻿@page "/enseignant/absences/create"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+
+<h3>Créer une absence</h3>
+
+<div>
+    <label>Type</label>
+    <select class="form-control" @bind="absence.Type">
+        <option value="Absence">Absence</option>
+        <option value="Retard">Retard</option>
+        <option value="Maladie">Maladie</option>
+    </select>
+</div>
+
+<br />
+
+<div>
+    <label>Date absence</label>
+    <input type="date" class="form-control" @bind="dateAbsence" />
+</div>
+
+<br />
+
+<div>
+    <label>ID Élève</label>
+    <input type="number" class="form-control" @bind="absence.IdEleve" />
+</div>
+
+<br />
+
+<div>
+    <label>ID Cours offert</label>
+    <input type="number" class="form-control" @bind="absence.IdCoursOffert" />
+</div>
+
+<br />
+
+<button class="btn btn-primary" @onclick="Create">
+    Créer
+</button>
+
+<button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/enseignant/absences")'>
+    Retour
+</button>
+
+<p>@message</p>
+
+@code {
+    private AbsenceCreate absence = new();
+    private DateTime dateAbsence = DateTime.Today;
+    private string message = "";
+
+    private async Task Create()
+    {
+        absence.DateAbsence = dateAbsence;
+
+        var res = await Http.PostAsJsonAsync("api/absences", absence);
+
+        if (res.IsSuccessStatusCode)
+        {
+            Navigation.NavigateTo("/enseignant/absences");
+        }
+        else
+        {
+            var erreur = await res.Content.ReadAsStringAsync();
+            message = $"Erreur : {erreur}";
+        }
+    }
+
+    public class AbsenceCreate
+    {
+        public string Type { get; set; } = "Absence";
+        public string Statut { get; set; } = "EnAttente";
+        public DateTime DateAbsence { get; set; }
+        public int IdEleve { get; set; }
+        public int IdCoursOffert { get; set; }
+    }
+}

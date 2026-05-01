@@ -1,0 +1,32 @@
+﻿@page "/admin/cours/create"
+@inject HttpClient Http
+
+<h3>Créer un cours</h3>
+
+<input @bind="cours.Code" placeholder="Code" />
+<input @bind="cours.Nom" placeholder="Nom" />
+<input @bind="cours.Description" placeholder="Description" />
+<input type="number" @bind="cours.ProgrammeId" placeholder="ProgrammeId" />
+
+<button @onclick="Create">Créer</button>
+
+<p>@message</p>
+
+@code {
+    Cours cours = new();
+    string message = "";
+
+    async Task Create()
+    {
+        var res = await Http.PostAsJsonAsync("api/cours", cours);
+        message = res.IsSuccessStatusCode ? "OK" : "Erreur";
+    }
+
+    public class Cours
+    {
+        public string Code { get; set; } = "";
+        public string Nom { get; set; } = "";
+        public string Description { get; set; } = "";
+        public int ProgrammeId { get; set; }
+    }
+}
