@@ -61,6 +61,11 @@
             <span class="sk-nav-icon">🚫</span>
             <span>Absences</span>
         </div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/enseignant/notes")'>
+            <span class="sk-nav-icon">📝</span>
+            <span>Saisie des notes</span>
+        </div>
     }
 
     @if (role == "ELEVE")
@@ -74,6 +79,11 @@
         <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/eleve/absences")'>
             <span class="sk-nav-icon">🚫</span>
             <span>Absences</span>
+        </div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/eleve/notes")'>
+            <span class="sk-nav-icon">📝</span>
+            <span>Notes & bulletins</span>
         </div>
     }
 
