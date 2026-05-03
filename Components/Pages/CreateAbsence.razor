@@ -1,80 +1,132 @@
 ﻿@page "/enseignant/absences/create"
+@page "/admin/absences/create"
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject System.Text.Json.JsonSerializerOptions JsonOptions
+@using Skolaris.Client.Enums
 @using System.Net.Http.Json
+@rendermode InteractiveServer
 
 <h3>Créer une absence</h3>
 
 <div>
     <label>Type</label>
     <select class="form-control" @bind="absence.Type">
-        <option value="Absence">Absence</option>
-        <option value="Retard">Retard</option>
-        <option value="Maladie">Maladie</option>
+        <option value="@TypeAbsence.Absence">Absence</option>
+        <option value="@TypeAbsence.Retard">Retard</option>
+        <option value="@TypeAbsence.Maladie">Maladie</option>
     </select>
 </div>
-
 <br />
 
 <div>
     <label>Date absence</label>
     <input type="date" class="form-control" @bind="dateAbsence" />
 </div>
-
 <br />
 
 <div>
-    <label>ID Élève</label>
-    <input type="number" class="form-control" @bind="absence.IdEleve" />
+    <label>Élève</label>
+    <select class="form-control" @bind="absence.IdEleve">
+        <option value="0" disabled>-- Sélectionner --</option>
+        @if (eleves != null)
+        {
+            @foreach (var e in eleves)
+            {
+                <option value="@e.IdEleve">@e.Prenom @e.Nom (@e.Matricule)</option>
+            }
+        }
+    </select>
 </div>
-
 <br />
 
 <div>
-    <label>ID Cours offert</label>
-    <input type="number" class="form-control" @bind="absence.IdCoursOffert" />
+    <label>Cours offert</label>
+    <select class="form-control" @bind="absence.IdCoursOffert">
+        <option value="0" disabled>-- Sélectionner --</option>
+        @if (coursOfferts != null)
+        {
+            @foreach (var c in coursOfferts)
+            {
+                <option value="@c.IdCoursOffert">
+                    @(string.IsNullOrEmpty(c.NomCours) ? $"Cours #{c.IdCoursOffert}" : c.NomCours) (@c.ModeEnseignement)
+                </option>
+            }
+        }
+    </select>
 </div>
-
 <br />
 
-<button class="btn btn-primary" @onclick="Create">
-    Créer
-</button>
+<div>
+    <label>Statut</label>
+    <select class="form-control" @bind="absence.Statut">
+        <option value="@StatutAbsence.Approuvee">Justifiée</option>
+        <option value="@StatutAbsence.Refusee">Non justifiée</option>
+    </select>
+</div>
+<br />
 
-<button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/enseignant/absences")'>
-    Retour
-</button>
+<button class="btn btn-primary" @onclick="Create">Créer</button>
+<button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/enseignant/absences")'>Retour</button>
 
-<p>@message</p>
+@if (!string.IsNullOrEmpty(message))
+{
+    <p style="color: red; margin-top: 1rem;">@message</p>
+}
 
 @code {
     private AbsenceCreate absence = new();
     private DateTime dateAbsence = DateTime.Today;
     private string message = "";
+    private List<EleveDto>? eleves;
+    private List<CoursOffertDto>? coursOfferts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            eleves = await Http.GetFromJsonAsync<List<EleveDto>>("api/eleves", JsonOptions);
+            coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert", JsonOptions);
+        }
+        catch (Exception ex)
+        {
+            message = $"Erreur chargement: {ex.Message}";
+        }
+    }
 
     private async Task Create()
     {
         absence.DateAbsence = dateAbsence;
-
-        var res = await Http.PostAsJsonAsync("api/absences", absence);
-
+        
+        var res = await Http.PostAsJsonAsync("api/absences", absence, JsonOptions);
         if (res.IsSuccessStatusCode)
-        {
-            Navigation.NavigateTo("/enseignant/absences");
-        }
+            Navigation.NavigateTo("/enseignant/absences?created=true");
         else
-        {
-            var erreur = await res.Content.ReadAsStringAsync();
-            message = $"Erreur : {erreur}";
-        }
+            message = $"Erreur : {await res.Content.ReadAsStringAsync()}";
     }
 
     public class AbsenceCreate
     {
-        public string Type { get; set; } = "Absence";
-        public string Statut { get; set; } = "EnAttente";
+        public TypeAbsence Type { get; set; } = TypeAbsence.Absence;
+        public StatutAbsence Statut { get; set; } = StatutAbsence.EnAttente;
         public DateTime DateAbsence { get; set; }
         public int IdEleve { get; set; }
         public int IdCoursOffert { get; set; }
+    }
+
+    public class EleveDto
+    {
+        public int IdEleve { get; set; }
+        public string Matricule { get; set; } = "";
+        public string Nom { get; set; } = "";
+        public string Prenom { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+
+    public class CoursOffertDto
+    {
+        public int IdCoursOffert { get; set; }
+        public string ModeEnseignement { get; set; } = "";
+        public string? NomCours { get; set; }
     }
 }

@@ -11,6 +11,10 @@
 {
     <div class="alert alert-danger">@errorMessage</div>
 }
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
 
 @if (users == null)
 {
@@ -46,13 +50,16 @@ else
                         </select>
 
                         <button class="btn btn-primary mt-2" @onclick="() => ChangeRole(user)">
-                            Modifier
+                            Modifier rôle
                         </button>
                     </td>
 
                     <td>@(user.IsActive ? "Oui" : "Non")</td>
 
                     <td>
+                        <button class="btn btn-secondary" @onclick="() => OpenEdit(user)">
+                            Modifier profil
+                        </button>
                         <button class="btn btn-warning" @onclick="() => ToggleActive(user.Id)">
                             @(user.IsActive ? "Désactiver" : "Activer")
                         </button>
@@ -61,6 +68,18 @@ else
             }
         </tbody>
     </table>
+
+    @if (editUser != null)
+    {
+        <div class="card p-3 mt-3">
+            <h5>Modifier utilisateur</h5>
+            <input class="form-control mb-2" @bind="editUserPrenom" placeholder="Prénom" />
+            <input class="form-control mb-2" @bind="editUserNom" placeholder="Nom" />
+            <input class="form-control mb-2" @bind="editUserEmail" placeholder="Email" />
+            <button class="btn btn-primary" @onclick="SaveEdit">Enregistrer</button>
+            <button class="btn btn-secondary" @onclick="CancelEdit">Annuler</button>
+        </div>
+    }
 }
 
 <button class="btn btn-secondary" @onclick="BackDashboard">
@@ -70,6 +89,12 @@ else
 @code {
     private List<UserItem>? users;
     private string errorMessage = "";
+    private string successMessage = "";
+
+    private UserItem? editUser;
+    private string editUserPrenom = "";
+    private string editUserNom = "";
+    private string editUserEmail = "";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -88,6 +113,7 @@ else
     private async Task ToggleActive(int id)
     {
         errorMessage = "";
+        successMessage = "";
 
         var response = await Http.PostAsync($"api/users/{id}/toggle-active", null);
 
@@ -97,12 +123,14 @@ else
             return;
         }
 
+        successMessage = "✅ Statut utilisateur mis à jour.";
         await LoadUsers();
     }
 
     private async Task ChangeRole(UserItem user)
     {
         errorMessage = "";
+        successMessage = "";
 
         var request = new ChangeRoleRequest
         {
@@ -120,7 +148,46 @@ else
             return;
         }
 
+        successMessage = "✅ Rôle mis à jour.";
         await LoadUsers();
+    }
+
+    private void OpenEdit(UserItem u)
+    {
+        errorMessage = "";
+        successMessage = "";
+        editUser = u;
+        // u.Nom contient "Prenom Nom" (concaténé par GetAllUsers), on sépare au premier espace
+        var parts = u.Nom.Trim().Split(' ', 2);
+        editUserPrenom = parts[0];
+        editUserNom = parts.Length > 1 ? parts[1] : "";
+        editUserEmail = u.Email;
+    }
+
+    private void CancelEdit() => editUser = null;
+
+    private async Task SaveEdit()
+    {
+        if (editUser == null) return;
+
+        errorMessage = "";
+        successMessage = "";
+
+        var res = await Http.PutAsJsonAsync(
+            $"api/profile/{editUser.Id}",
+            new { Prenom = editUserPrenom, Nom = editUserNom, Email = editUserEmail }
+        );
+
+        if (res.IsSuccessStatusCode)
+        {
+            successMessage = "✅ Profil mis à jour.";
+            editUser = null;
+            await LoadUsers();
+        }
+        else
+        {
+            errorMessage = await res.Content.ReadAsStringAsync();
+        }
     }
 
     private void BackDashboard()

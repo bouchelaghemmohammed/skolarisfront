@@ -1,10 +1,128 @@
 ﻿@page "/enseignant/absences"
+@inject HttpClient Http
 @inject NavigationManager Navigation
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.WebUtilities
 
 <h3>Gestion des absences</h3>
 
 <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/enseignant/absences/create")'>
     ➕ Créer une absence
 </button>
+<br />
+<br />
 
-<p>Page enseignant absences fonctionne.</p>
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert alert-success">@message</div>
+}
+
+@if (absences == null)
+{
+    <p>Chargement...</p>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Statut</th>
+                <th>Date</th>
+                <th>Élève</th>
+                <th>Cours offert</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!absences.Any())
+            {
+                <tr>
+                    <td colspan="6" class="text-center">Aucune absence</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var a in absences)
+                {
+                    <tr>
+                        <td>@a.IdAbsence</td>
+                        <td>@a.Type</td>
+                        <td>@a.Statut</td>
+                        <td>@a.DateAbsence.ToString("yyyy-MM-dd")</td>
+                        <td>@GetEleveLabel(a.IdEleve)</td>
+                        <td>@GetCoursLabel(a.IdCoursOffert)</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Absence>? absences;
+    private List<EleveDto>? eleves;
+    private List<CoursOffertDto>? coursOfferts;
+    private string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("created", out var created) && created == "true")
+        {
+            message = "✅ Absence créée avec succès.";
+        }
+
+        var absencesTask = Http.GetFromJsonAsync<List<Absence>>("api/absences");
+        var elevesTask = Http.GetFromJsonAsync<List<EleveDto>>("api/eleves");
+        var coursTask = Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
+
+        await Task.WhenAll(absencesTask, elevesTask, coursTask);
+
+        absences = absencesTask.Result ?? new();
+        eleves = elevesTask.Result ?? new();
+        coursOfferts = coursTask.Result ?? new();
+    }
+
+    private string GetEleveLabel(int idEleve)
+    {
+        var eleve = eleves?.FirstOrDefault(e => e.IdEleve == idEleve);
+        if (eleve == null) return $"Inconnu (#{idEleve})";
+        return $"{eleve.Prenom} {eleve.Nom} ({eleve.Matricule})";
+    }
+
+    private string GetCoursLabel(int idCoursOffert)
+    {
+        var cours = coursOfferts?.FirstOrDefault(c => c.IdCoursOffert == idCoursOffert);
+        if (cours == null) return $"Inconnu (#{idCoursOffert})";
+        return !string.IsNullOrEmpty(cours.NomCours)
+            ? $"{cours.NomCours} ({cours.ModeEnseignement})"
+            : $"Cours #{cours.IdCoursOffert} ({cours.ModeEnseignement})";
+    }
+
+    public class Absence
+    {
+        public int IdAbsence { get; set; }
+        public string Type { get; set; } = "";
+        public string Statut { get; set; } = "";
+        public DateTime DateAbsence { get; set; }
+        public int IdEleve { get; set; }
+        public int IdCoursOffert { get; set; }
+    }
+
+    public class EleveDto
+    {
+        public int IdEleve { get; set; }
+        public string Matricule { get; set; } = "";
+        public string Nom { get; set; } = "";
+        public string Prenom { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+
+    public class CoursOffertDto
+    {
+        public int IdCoursOffert { get; set; }
+        public string ModeEnseignement { get; set; } = "";
+        public string? NomCours { get; set; }
+    }
+}
