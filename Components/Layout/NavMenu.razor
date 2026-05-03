@@ -42,6 +42,16 @@
             <span>Cours</span>
         </div>
 
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/inscriptions")'>
+            <span class="sk-nav-icon">📝</span>
+            <span>Inscriptions</span>
+        </div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/absences")'>
+            <span class="sk-nav-icon">🚫</span>
+            <span>Absences</span>
+        </div>
+
     }
     @if (role == "ENSEIGNANT")
     {

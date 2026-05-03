@@ -53,6 +53,16 @@ else
             <div class="sk-stat-value">@stats.InactiveUsers</div>
             <div class="sk-stat-label">Désactivés</div>
         </div>
+        <div class="sk-stat-card sk-stat-card-blue">
+            <div class="sk-stat-icon">📝</div>
+            <div class="sk-stat-value">@stats.TotalInscriptions</div>
+            <div class="sk-stat-label">Inscriptions</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-accent">
+            <div class="sk-stat-icon">📋</div>
+            <div class="sk-stat-value">@stats.TotalAbsences</div>
+            <div class="sk-stat-label">Absences</div>
+        </div>
     </div>
 
     <!-- Actions rapides -->
@@ -83,6 +93,18 @@ else
             <div class="sk-action-icon">📘</div>
             <div class="sk-action-title">Cours</div>
             <div class="sk-action-desc">Créer et gérer les cours</div>
+        </div>
+
+        <div class="sk-action-card" @onclick="GoInscriptions">
+            <div class="sk-action-icon">📝</div>
+            <div class="sk-action-title">Inscriptions</div>
+            <div class="sk-action-desc">Inscrire des élèves aux cours offerts</div>
+        </div>
+
+        <div class="sk-action-card" @onclick="GoAbsences">
+            <div class="sk-action-icon">🚫</div>
+            <div class="sk-action-title">Absences</div>
+            <div class="sk-action-desc">Consulter et gérer les absences</div>
         </div>
 
     </div>
@@ -116,6 +138,8 @@ else
     private void GoSessions() => Navigation.NavigateTo("/sessions");
     private void GoProgrammes() => Navigation.NavigateTo("/admin/programmes/create");
     private void GoCours() => Navigation.NavigateTo("/admin/cours/create");
+    private void GoInscriptions() => Navigation.NavigateTo("/admin/inscriptions");
+    private void GoAbsences() => Navigation.NavigateTo("/admin/absences");
 
     public class DashboardStats
     {
@@ -125,5 +149,7 @@ else
         public int TotalEleves { get; set; }
         public int ActiveUsers { get; set; }
         public int InactiveUsers { get; set; }
+        public int TotalInscriptions { get; set; }
+        public int TotalAbsences { get; set; }
     }
 }
