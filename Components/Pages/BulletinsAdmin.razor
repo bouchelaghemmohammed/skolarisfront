@@ -1,0 +1,153 @@
+@page "/admin/bulletins"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<h2 class="sk-section-title">Génération de bulletins</h2>
+
+<p class="sk-welcome-sub" style="margin-top:-8px;">
+    Générer ou régénérer le bulletin officiel d'un élève pour une session donnée.
+    Le calcul se base sur les notes pondérées de tous les cours offerts auxquels l'élève est inscrit.
+</p>
+
+<div class="sk-card" style="margin-top:16px;">
+    <div class="sk-form-row">
+        <div>
+            <label>ID Élève</label>
+            <input type="number" class="form-control" @bind="idEleve" />
+        </div>
+        <div>
+            <label>ID Session</label>
+            <input type="number" class="form-control" @bind="idSession" />
+        </div>
+        <div style="align-self:flex-end;">
+            <button class="btn btn-primary" @onclick="Generer" disabled="@enCours">
+                @(enCours ? "Génération..." : "📄 Générer le bulletin")
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert @(success ? "alert-success" : "alert-danger") mt-3">@message</div>
+}
+
+@if (bulletin != null)
+{
+    <div class="sk-section-title" style="margin-top:32px;">Bulletin généré</div>
+
+    <div class="sk-stats-row">
+        <div class="sk-stat-card sk-stat-card-blue">
+            <div class="sk-stat-icon">🆔</div>
+            <div class="sk-stat-value">@bulletin.IdBulletin</div>
+            <div class="sk-stat-label">ID Bulletin</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-green">
+            <div class="sk-stat-icon">📊</div>
+            <div class="sk-stat-value">@bulletin.MoyenneGeneral.ToString("F2")</div>
+            <div class="sk-stat-label">Moyenne générale</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-accent">
+            <div class="sk-stat-icon">🏆</div>
+            <div class="sk-stat-value" style="font-size:18px;">@bulletin.Mention</div>
+            <div class="sk-stat-label">Mention</div>
+        </div>
+    </div>
+
+    @if (bulletin.DetailBulletins != null && bulletin.DetailBulletins.Any())
+    {
+        <div class="sk-section-title" style="margin-top:24px;">Détail des notes incluses</div>
+        <div class="sk-table-wrapper">
+            <table class="sk-table">
+                <thead>
+                    <tr>
+                        <th>ID Détail</th>
+                        <th>ID Note</th>
+                        <th>ID Cours offert</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in bulletin.DetailBulletins)
+                    {
+                        <tr>
+                            <td>@d.IdDetailBulletin</td>
+                            <td>@d.IdNote</td>
+                            <td>@d.IdCoursOffert</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>
+        ← Retour au tableau de bord
+    </button>
+</div>
+
+@code {
+    private int idEleve;
+    private int idSession;
+    private bool enCours = false;
+    private bool success = false;
+    private string message = "";
+    private BulletinDto? bulletin;
+
+    private async Task Generer()
+    {
+        if (idEleve <= 0 || idSession <= 0)
+        {
+            message = "Veuillez fournir un ID élève et un ID session valides.";
+            success = false;
+            return;
+        }
+
+        enCours = true;
+        message = "";
+        bulletin = null;
+
+        try
+        {
+            var res = await Http.PostAsync($"api/bulletins/generer/{idEleve}/{idSession}", null);
+            if (res.IsSuccessStatusCode)
+            {
+                bulletin = await res.Content.ReadFromJsonAsync<BulletinDto>();
+                message = $"Bulletin généré avec succès pour l'élève #{idEleve}, session #{idSession}.";
+                success = true;
+            }
+            else
+            {
+                message = $"Erreur : {await res.Content.ReadAsStringAsync()}";
+                success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Erreur : {ex.Message}";
+            success = false;
+        }
+
+        enCours = false;
+    }
+
+    public class BulletinDto
+    {
+        public int IdBulletin { get; set; }
+        public decimal MoyenneGeneral { get; set; }
+        public string Mention { get; set; } = "";
+        public int IdEleve { get; set; }
+        public int IdSession { get; set; }
+        public List<DetailDto>? DetailBulletins { get; set; }
+    }
+
+    public class DetailDto
+    {
+        public int IdDetailBulletin { get; set; }
+        public int IdNote { get; set; }
+        public int IdCoursOffert { get; set; }
+    }
+}

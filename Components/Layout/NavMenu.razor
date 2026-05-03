@@ -42,6 +42,11 @@
             <span>Cours</span>
         </div>
 
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/bulletins")'>
+            <span class="sk-nav-icon">📄</span>
+            <span>Bulletins</span>
+        </div>
+
     }
     @if (role == "ENSEIGNANT")
     {
@@ -50,6 +55,11 @@
         <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/enseignant/absences")'>
             <span class="sk-nav-icon">🚫</span>
             <span>Absences</span>
+        </div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/enseignant/notes")'>
+            <span class="sk-nav-icon">📝</span>
+            <span>Saisie des notes</span>
         </div>
     }
 
@@ -64,6 +74,11 @@
         <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/eleve/absences")'>
             <span class="sk-nav-icon">🚫</span>
             <span>Absences</span>
+        </div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/eleve/notes")'>
+            <span class="sk-nav-icon">📝</span>
+            <span>Notes & bulletins</span>
         </div>
     }
 
