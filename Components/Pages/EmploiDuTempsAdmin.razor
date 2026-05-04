@@ -1,0 +1,258 @@
+@* HOR-04 — Emploi du temps — Vue Admin *@
+@page "/admin/emploi-du-temps"
+@rendermode InteractiveServer
+@inject HttpClient Http
+@inject IJSRuntime JS
+@using System.Net.Http.Json
+
+<h3>Emploi du temps — Administration</h3>
+
+<div class="d-flex gap-3 mb-3 flex-wrap align-items-end">
+    <div>
+        <label class="form-label mb-1">Filtrer par groupe</label>
+        <select class="form-select" style="min-width:200px" @bind="filterGroupeId">
+            <option value="0">— Tous —</option>
+            @foreach (var g in groupes)
+            {
+                <option value="@g.Id">@g.Nom</option>
+            }
+        </select>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">+ Nouveau créneau</button>
+</div>
+
+@if (creneaux == null)
+{
+    <p>Chargement...</p>
+}
+else if (!FilteredCreneaux.Any())
+{
+    <div class="alert alert-info">Aucun créneau trouvé.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered">
+            <thead class="table-dark">
+                <tr>
+                    <th>Jour</th>
+                    <th>Cours</th>
+                    <th>Groupe</th>
+                    <th>Enseignant</th>
+                    <th>Horaire</th>
+                    <th>Salle</th>
+                    <th style="width:100px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in FilteredCreneaux.OrderBy(x => x.JourSemaine).ThenBy(x => x.HeureDebut))
+                {
+                    <tr>
+                        <td>@JourLabel(c.JourSemaine)</td>
+                        <td>@c.CoursNom</td>
+                        <td><span class="badge bg-secondary">@c.GroupeNom</span></td>
+                        <td>@c.EnseignantNom</td>
+                        <td>@c.HeureDebut – @c.HeureFin</td>
+                        <td>@(c.Salle ?? "—")</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary me-1" @onclick="() => OpenEditModal(c)">✏️</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(c)">🗑️</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@* ── Modal Créer / Modifier ──────────────────────────────────────────────── *@
+@if (showModal)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editing.Id == 0 ? "Nouveau créneau" : "Modifier le créneau")</h5>
+                    <button class="btn-close" @onclick="() => showModal = false" />
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Cours offert <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="editing.CoursOffertId">
+                            <option value="0">— Choisir —</option>
+                            @foreach (var co in coursOfferts)
+                            {
+                                <option value="@co.Id">@co.CoursNom — @co.GroupeNom (@co.EnseignantNom)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Jour <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="editing.JourSemaine">
+                            @foreach (var j in Jours)
+                            {
+                                <option value="@j.Key">@j.Value</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col mb-3">
+                            <label class="form-label">Heure début <span class="text-danger">*</span></label>
+                            <input type="time" class="form-control" @bind="editing.HeureDebut" />
+                        </div>
+                        <div class="col mb-3">
+                            <label class="form-label">Heure fin <span class="text-danger">*</span></label>
+                            <input type="time" class="form-control" @bind="editing.HeureFin" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Salle</label>
+                        <input class="form-control" @bind="editing.Salle" placeholder="ex: A-101" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(modalError))
+                    {
+                        <div class="alert alert-danger py-2">@modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => showModal = false">Annuler</button>
+                    <button class="btn btn-primary" @onclick="SaveCreneau">💾 Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Confirmation suppression ────────────────────────────────────────────── *@
+@if (deletingCreneau is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-body text-center py-4">
+                    <p>Supprimer ce créneau ?<br /><strong>@deletingCreneau.CoursNom — @JourLabel(deletingCreneau.JourSemaine)</strong></p>
+                    <button class="btn btn-danger me-2" @onclick="DeleteConfirmed">Oui</button>
+                    <button class="btn btn-secondary" @onclick="() => deletingCreneau = null">Annuler</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<CreneauDto>?    creneaux;
+    private List<CoursOffertDto> coursOfferts = new();
+    private List<GroupeDto>      groupes      = new();
+    private int    filterGroupeId = 0;
+    private bool   showModal  = false;
+    private string modalError = "";
+    private CreneauFormDto  editing        = new();
+    private CreneauDto?     deletingCreneau;
+
+    private static readonly Dictionary<int, string> Jours = new()
+    {
+        [1] = "Lundi", [2] = "Mardi", [3] = "Mercredi", [4] = "Jeudi", [5] = "Vendredi"
+    };
+    private string JourLabel(int j) => Jours.TryGetValue(j, out var l) ? l : j.ToString();
+
+    private IEnumerable<CreneauDto> FilteredCreneaux =>
+        filterGroupeId == 0 ? creneaux! : creneaux!.Where(c => c.GroupeId == filterGroupeId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        creneaux     = await Http.GetFromJsonAsync<List<CreneauDto>>("api/Creneaux") ?? new();
+        coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOfferts") ?? new();
+        groupes      = await Http.GetFromJsonAsync<List<GroupeDto>>("api/Groupes") ?? new();
+    }
+
+    private void OpenCreateModal()
+    {
+        editing    = new CreneauFormDto { JourSemaine = 1, HeureDebut = "08:30", HeureFin = "11:30" };
+        modalError = "";
+        showModal  = true;
+    }
+
+    private void OpenEditModal(CreneauDto c)
+    {
+        editing = new CreneauFormDto
+        {
+            Id = c.Id, CoursOffertId = c.CoursOffertId,
+            JourSemaine = c.JourSemaine,
+            HeureDebut = c.HeureDebut, HeureFin = c.HeureFin, Salle = c.Salle
+        };
+        modalError = "";
+        showModal  = true;
+    }
+
+    private async Task SaveCreneau()
+    {
+        if (editing.CoursOffertId == 0) { modalError = "Sélectionnez un cours offert."; return; }
+
+        HttpResponseMessage res;
+        if (editing.Id == 0)
+            res = await Http.PostAsJsonAsync("api/Creneaux", editing);
+        else
+            res = await Http.PutAsJsonAsync($"api/Creneaux/{editing.Id}", editing);
+
+        if (res.IsSuccessStatusCode)
+        {
+            showModal = false;
+            creneaux  = await Http.GetFromJsonAsync<List<CreneauDto>>("api/Creneaux") ?? new();
+        }
+        else
+        {
+            modalError = "Erreur lors de l'enregistrement.";
+        }
+    }
+
+    private void ConfirmDelete(CreneauDto c) => deletingCreneau = c;
+
+    private async Task DeleteConfirmed()
+    {
+        if (deletingCreneau is not null)
+        {
+            await Http.DeleteAsync($"api/Creneaux/{deletingCreneau.Id}");
+            deletingCreneau = null;
+            creneaux = await Http.GetFromJsonAsync<List<CreneauDto>>("api/Creneaux") ?? new();
+        }
+    }
+
+    // ── DTOs ────────────────────────────────────────────────────────────────
+    public class CreneauDto
+    {
+        public int    Id            { get; set; }
+        public int    CoursOffertId { get; set; }
+        public string CoursNom      { get; set; } = "";
+        public string GroupeNom     { get; set; } = "";
+        public int    GroupeId      { get; set; }
+        public string EnseignantNom { get; set; } = "";
+        public int    JourSemaine   { get; set; }
+        public string HeureDebut    { get; set; } = "";
+        public string HeureFin      { get; set; } = "";
+        public string? Salle        { get; set; }
+    }
+
+    public class CreneauFormDto
+    {
+        public int    Id            { get; set; }
+        public int    CoursOffertId { get; set; }
+        public int    JourSemaine   { get; set; }
+        public string HeureDebut    { get; set; } = "";
+        public string HeureFin      { get; set; } = "";
+        public string? Salle        { get; set; }
+    }
+
+    public class CoursOffertDto
+    {
+        public int    Id            { get; set; }
+        public string CoursNom      { get; set; } = "";
+        public string GroupeNom     { get; set; } = "";
+        public string EnseignantNom { get; set; } = "";
+    }
+
+    public class GroupeDto
+    {
+        public int    Id  { get; set; }
+        public string Nom { get; set; } = "";
+    }
+}
