@@ -35,7 +35,7 @@
             <span>Sessions</span>
         </div>
 
-        <div class="sk-nav-item"
+      /*  <div class="sk-nav-item"
              @onclick='() => Navigation.NavigateTo("/admin/programmes")'>
             <span class="sk-nav-icon">📚</span>
             <span>Programmes</span>
@@ -45,7 +45,7 @@
              @onclick='() => Navigation.NavigateTo("/admin/cours")'>
             <span class="sk-nav-icon">📘</span>
             <span>Cours</span>
-        </div>
+        </div>*/
 
         <div class="sk-nav-item"
              @onclick='() => Navigation.NavigateTo("/admin/inscriptions")'>
@@ -58,6 +58,25 @@
             <span class="sk-nav-icon">🚫</span>
             <span>Absences</span>
         </div>
+
+        <div class="sk-nav-item"
+             @onclick='() => Navigation.NavigateTo("/admin/bulletins")'>
+            <span class="sk-nav-icon">📄</span>
+            <span>Bulletins</span>
+        </div>
+
+        <div class="sk-nav-item"
+             @onclick='() => Navigation.NavigateTo("/programmes")'>
+            <span class="sk-nav-icon">📄</span>
+            <span>Programmes</span>
+        </div>
+        <div class="sk-nav-item"
+             @onclick='() => Navigation.NavigateTo("/cours")'>
+            <span class="sk-nav-icon">📄</span>
+            <span>Cours</span>
+        </div>
+
+
     }
 
     @if (role == "ENSEIGNANT")

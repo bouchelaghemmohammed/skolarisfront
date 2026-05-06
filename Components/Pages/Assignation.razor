@@ -1,0 +1,94 @@
+﻿@page "/assignation"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<h3>Assignation Enseignant / Groupe</h3>
+
+<h5>Choisir un cours offert</h5>
+
+<select @bind="selectedId">
+    <option value="0">Choisir Cours Offert</option>
+
+    @foreach (var item in coursOfferts)
+    {
+        <option value="@item.IdCoursOffert">
+            #@item.IdCoursOffert - @GetCoursNom(item.IdCours)
+        </option>
+    }
+</select>
+
+<br />
+<br />
+
+<input type="number" @bind="request.IdEnseignant" placeholder="Id Enseignant" />
+<input type="number" @bind="request.IdGroupe" placeholder="Id Groupe" />
+
+<button @onclick="Assigner">Assigner</button>
+
+<br />
+<br />
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <p><b>@message</b></p>
+}
+
+@code {
+    List<CoursOffertDto> coursOfferts = new();
+    List<CoursDto> cours = new();
+
+    int selectedId = 0;
+
+    AssignRequest request = new();
+
+    string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        coursOfferts =
+            await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert") ?? new();
+
+        cours =
+            await Http.GetFromJsonAsync<List<CoursDto>>("api/Cours") ?? new();
+    }
+
+    async Task Assigner()
+    {
+        var response = await Http.PutAsJsonAsync(
+            $"api/CoursOffert/{selectedId}/assign",
+            request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            message = "Assignation réussie ✅";
+            request = new AssignRequest();
+        }
+        else
+        {
+            message = "Erreur lors de l'assignation ❌";
+        }
+    }
+
+    string GetCoursNom(int idCours)
+    {
+        return cours.FirstOrDefault(c => c.IdCours == idCours)?.Nom ?? "N/A";
+    }
+
+    public class CoursOffertDto
+    {
+        public int IdCoursOffert { get; set; }
+        public int IdCours { get; set; }
+    }
+
+    public class CoursDto
+    {
+        public int IdCours { get; set; }
+        public string Nom { get; set; } = "";
+    }
+
+    public class AssignRequest
+    {
+        public int IdEnseignant { get; set; }
+        public int IdGroupe { get; set; }
+    }
+}

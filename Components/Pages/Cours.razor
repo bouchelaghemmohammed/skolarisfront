@@ -1,0 +1,115 @@
+﻿@page "/cours"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<h3>Gestion des Cours</h3>
+
+<h5>Ajouter un cours</h5>
+
+<input @bind="newCours.Nom" placeholder="Nom" />
+<input @bind="newCours.Description" placeholder="Description" />
+<input type="number" @bind="newCours.Credit" placeholder="Crédit" />
+<input type="number" @bind="newCours.Duree" placeholder="Durée" />
+
+<select @bind="newCours.IdProgramme">
+    <option value="0">Choisir Programme</option>
+    @foreach (var p in programmes)
+    {
+        <option value="@p.IdProgramme">@p.Nom</option>
+    }
+</select>
+
+<input type="number" @bind="newCours.IdNiveau" placeholder="Id Niveau" />
+
+<button @onclick="Ajouter">Ajouter</button>
+
+<hr />
+
+@if (cours == null)
+{
+    <p>Chargement...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nom</th>
+                <th>Programme</th>
+                <th>Crédit</th>
+                <th>Durée</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var c in cours)
+            {
+                <tr>
+                    <td>@c.Nom</td>
+                    <td>@GetProgrammeNom(c.IdProgramme)</td>
+                    <td>@c.Credit</td>
+                    <td>@c.Duree</td>
+                    <td>
+                        <button @onclick="() => Supprimer(c.IdCours)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<CoursDto>? cours;
+    List<ProgrammeDto> programmes = new();
+
+    CoursDto newCours = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Charger();
+    }
+
+    async Task Charger()
+    {
+        cours = await Http.GetFromJsonAsync<List<CoursDto>>("api/Cours");
+        programmes = await Http.GetFromJsonAsync<List<ProgrammeDto>>("api/Programme") ?? new();
+    }
+
+    async Task Ajouter()
+    {
+        await Http.PostAsJsonAsync("api/Cours", newCours);
+        newCours = new CoursDto();
+        await Charger();
+    }
+
+    async Task Supprimer(int id)
+    {
+        await Http.DeleteAsync($"api/Cours/{id}");
+        await Charger();
+    }
+
+    string GetProgrammeNom(int id)
+    {
+        return programmes.FirstOrDefault(p => p.IdProgramme == id)?.Nom ?? "N/A";
+    }
+
+    public class CoursDto
+    {
+        public int IdCours { get; set; }
+        public int IdProgramme { get; set; }
+        public int IdNiveau { get; set; }
+        public string Nom { get; set; } = "";
+        public string Description { get; set; } = "";
+        public int Credit { get; set; }
+        public int Duree { get; set; }
+        public bool Actif { get; set; } = true;
+    }
+
+    public class ProgrammeDto
+    {
+        public int IdProgramme { get; set; }
+        public string Nom { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+}

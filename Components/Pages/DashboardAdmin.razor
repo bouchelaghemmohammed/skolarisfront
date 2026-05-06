@@ -1,6 +1,6 @@
 @page "/dashboard-admin"
 @rendermode InteractiveServer
-
+  
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -133,6 +133,13 @@ else
                 Consulter les absences
             </div>
         </div>
+        
+        <div class="sk-action-card" @onclick="GoBulletins">
+            <div class="sk-action-icon">📄</div>
+            <div class="sk-action-title">Bulletins</div>
+            <div class="sk-action-desc">Générer les bulletins scolaires</div>
+        </div>
+
 
     </div>
 }
@@ -191,6 +198,9 @@ else
 
     private void GoAbsences() =>
         Navigation.NavigateTo("/admin/absences");
+
+    private void GoBulletins() => 
+        Navigation.NavigateTo("/admin/bulletins");
 
     public class DashboardStats
     {

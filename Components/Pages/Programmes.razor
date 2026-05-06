@@ -1,0 +1,123 @@
+﻿@page "/programmes"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<h3>Gestion des Programmes</h3>
+
+<h5>Ajouter un programme</h5>
+
+<input @bind="newProgramme.Nom" placeholder="Nom" />
+<input @bind="newProgramme.Description" placeholder="Description" />
+<button @onclick="Ajouter">Ajouter</button>
+
+<hr />
+
+@if (programmes == null)
+{
+    <p>Chargement...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nom</th>
+                <th>Description</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var p in programmes)
+            {
+                <tr>
+                    @if (editId == p.IdProgramme)
+                    {
+                        <td>
+                            <input @bind="editProgramme.Nom" />
+                        </td>
+                        <td>
+                            <input @bind="editProgramme.Description" />
+                        </td>
+                        <td>
+                            <button @onclick="Sauvegarder">Save</button>
+                            <button @onclick="Annuler">Cancel</button>
+                        </td>
+                    }
+                    else
+                    {
+                        <td>@p.Nom</td>
+                        <td>@p.Description</td>
+                        <td>
+                            <button @onclick="() => Modifier(p)">Edit</button>
+                            <button @onclick="() => Supprimer(p.IdProgramme)">Delete</button>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<Programme>? programmes;
+
+    Programme newProgramme = new();
+    Programme editProgramme = new();
+
+    int editId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Charger();
+    }
+
+    async Task Charger()
+    {
+        programmes = await Http.GetFromJsonAsync<List<Programme>>("api/Programme");
+    }
+
+    async Task Ajouter()
+    {
+        await Http.PostAsJsonAsync("api/Programme", newProgramme);
+        newProgramme = new Programme();
+        await Charger();
+    }
+
+    void Modifier(Programme p)
+    {
+        editId = p.IdProgramme;
+
+        editProgramme = new Programme
+        {
+            IdProgramme = p.IdProgramme,
+            Nom = p.Nom,
+            Description = p.Description
+        };
+    }
+
+    async Task Sauvegarder()
+    {
+        await Http.PutAsJsonAsync($"api/Programme/{editId}", editProgramme);
+        editId = 0;
+        await Charger();
+    }
+
+    void Annuler()
+    {
+        editId = 0;
+    }
+
+    async Task Supprimer(int id)
+    {
+        await Http.DeleteAsync($"api/Programme/{id}");
+        await Charger();
+    }
+
+    public class Programme
+    {
+        public int IdProgramme { get; set; }
+        public string Nom { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+}

@@ -1,0 +1,124 @@
+﻿@page "/coursofferts"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<h3>Gestion des Cours Offerts</h3>
+
+<h5>Ajouter un cours offert</h5>
+
+<select @bind="newCoursOffert.IdCours">
+    <option value="0">Choisir Cours</option>
+    @foreach (var c in cours)
+    {
+        <option value="@c.IdCours">@c.Nom</option>
+    }
+</select>
+
+<input type="number" @bind="newCoursOffert.IdSession" placeholder="Id Session" />
+
+<select @bind="newCoursOffert.ModeEnseignement">
+    <option value="">Choisir mode</option>
+    <option value="Présentiel">Présentiel</option>
+    <option value="En ligne">En ligne</option>
+    <option value="Hybride">Hybride</option>
+</select>
+
+<button @onclick="Ajouter">Ajouter</button>
+
+<hr />
+
+@if (coursOfferts == null)
+{
+    <p>Chargement...</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Cours</th>
+                <th>Session</th>
+                <th>Mode</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var co in coursOfferts)
+            {
+                <tr>
+                    <td>@GetCoursNom(co.IdCours)</td>
+                    <td>@co.IdSession</td>
+                    <td>@co.ModeEnseignement</td>
+                    <td>
+                        <button @onclick="() => Supprimer(co.IdCoursOffert)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<CoursDto> cours = new();
+    List<CoursOffertDto>? coursOfferts;
+
+    CoursOffertDto newCoursOffert = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Charger();
+    }
+
+    async Task Charger()
+    {
+        cours = await Http.GetFromJsonAsync<List<CoursDto>>("api/Cours") ?? new();
+        coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
+    }
+
+    async Task Ajouter()
+    {
+        var response = await Http.PostAsJsonAsync("api/CoursOffert", newCoursOffert);
+
+        if (response.IsSuccessStatusCode)
+        {
+            newCoursOffert = new CoursOffertDto();
+            await Charger();
+        }
+        else
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine(error);
+        }
+    }
+
+    async Task Supprimer(int id)
+    {
+        await Http.DeleteAsync($"api/CoursOffert/{id}");
+        await Charger();
+    }
+
+    string GetCoursNom(int id)
+    {
+        return cours.FirstOrDefault(c => c.IdCours == id)?.Nom ?? "N/A";
+    }
+
+    public class CoursDto
+    {
+        public int IdCours { get; set; }
+        public string Nom { get; set; } = "";
+    }
+
+    public class CoursOffertDto
+    {
+        public int IdCoursOffert { get; set; }
+        public int IdCours { get; set; }
+        public int IdSession { get; set; }
+
+        public int IdGroupe { get; set; } = 1;
+        public int IdEnseignant { get; set; } = 1;
+
+        public string ModeEnseignement { get; set; } = "";
+        public bool Actif { get; set; } = true;
+    }
+}
