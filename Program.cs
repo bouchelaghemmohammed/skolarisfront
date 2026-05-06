@@ -1,25 +1,16 @@
-using Skolaris.Client.Components;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using GestionScolaire.UI.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Options JSON partagées (case-insensitive + enums en string)
-var jsonOptions = new JsonSerializerOptions
+// HttpClient for backend API
+builder.Services.AddScoped(sp => new HttpClient
 {
-    PropertyNameCaseInsensitive = true
-};
-jsonOptions.Converters.Add(new JsonStringEnumConverter());
-builder.Services.AddSingleton(jsonOptions);
-
-builder.Services.AddScoped(sp =>
-    new HttpClient
-    {
-        BaseAddress = new Uri("http://localhost:5043/")
-    });
+    BaseAddress = new Uri("http://localhost:5043/")
+});
 
 var app = builder.Build();
 
@@ -30,9 +21,10 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseAntiforgery();
-app.MapStaticAssets();
 
+app.UseAntiforgery();
+
+app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

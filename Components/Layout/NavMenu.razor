@@ -1,115 +1,42 @@
-@inject NavigationManager Navigation
-@inject IJSRuntime JS
-
-<div class="sk-sidebar-brand" @onclick="GoHome">
-    <div class="sk-sidebar-logo">S</div>
-    <span class="sk-sidebar-name">Skolaris</span>
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">GestionScolaire.UI</a>
+    </div>
 </div>
 
-<nav class="sk-sidebar-nav">
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-    <div class="sk-nav-item" @onclick="GoHome">
-        <span class="sk-nav-icon">🏠</span>
-        <span>Accueil</span>
-    </div>
-
-    @if (role == "ADMIN")
-    {
-        <div class="sk-nav-section">Administration</div>
-
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/users-management")'>
-            <span class="sk-nav-icon">👥</span>
-            <span>Utilisateurs</span>
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
         </div>
 
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/etablissements")'>
-            <span class="sk-nav-icon">🏫</span>
-            <span>Établissements</span>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="programmes">
+                <span class="bi bi-list-nested" aria-hidden="true"></span> Programmes
+            </NavLink>
         </div>
 
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/sessions")'>
-            <span class="sk-nav-icon">📅</span>
-            <span>Sessions</span>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="cours">
+                <span class="bi bi-journal-bookmark" aria-hidden="true"></span> Cours
+            </NavLink>
         </div>
 
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/programmes")'>
-            <span class="sk-nav-icon">📚</span>
-            <span>Programmes</span>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="coursofferts">
+                <span class="bi bi-calendar-check" aria-hidden="true"></span> Cours Offerts
+            </NavLink>
         </div>
 
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/cours")'>
-            <span class="sk-nav-icon">📘</span>
-            <span>Cours</span>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="assignation">
+                <span class="bi bi-person-check" aria-hidden="true"></span> Assignation
+            </NavLink>
         </div>
+    </nav>
+</div>
 
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/inscriptions")'>
-            <span class="sk-nav-icon">📝</span>
-            <span>Inscriptions</span>
-        </div>
-
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/absences")'>
-            <span class="sk-nav-icon">🚫</span>
-            <span>Absences</span>
-        </div>
-
-    }
-    @if (role == "ENSEIGNANT")
-    {
-        <div class="sk-nav-section">Enseignant</div>
-
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/enseignant/absences")'>
-            <span class="sk-nav-icon">🚫</span>
-            <span>Absences</span>
-        </div>
-
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/enseignant/notes")'>
-            <span class="sk-nav-icon">📝</span>
-            <span>Saisie des notes</span>
-        </div>
-    }
-
-    @if (role == "ELEVE")
-    {
-        <div class="sk-nav-section">Mon espace</div>
-
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/dossier-academique")'>
-            <span class="sk-nav-icon">📂</span>
-            <span>Dossier académique</span>
-        </div>
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/eleve/absences")'>
-            <span class="sk-nav-icon">🚫</span>
-            <span>Absences</span>
-        </div>
-
-        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/eleve/notes")'>
-            <span class="sk-nav-icon">📝</span>
-            <span>Notes & bulletins</span>
-        </div>
-    }
-
-</nav>
-
-@code {
-    private string role = "";
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            role = await JS.InvokeAsync<string>("localStorage.getItem", "role") ?? "";
-            StateHasChanged();
-        }
-    }
-
-    private void GoHome()
-    {
-        if (role == "ADMIN")
-            Navigation.NavigateTo("/dashboard-admin");
-        else if (role == "ENSEIGNANT")
-            Navigation.NavigateTo("/dashboard-enseignant");
-        else if (role == "ELEVE")
-            Navigation.NavigateTo("/dashboard-eleve");
-        else
-            Navigation.NavigateTo("/login");
-    }
-}

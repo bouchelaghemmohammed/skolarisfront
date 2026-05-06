@@ -1,51 +1,23 @@
-@inherits LayoutComponentBase
+﻿@inherits LayoutComponentBase
 
-@inject NavigationManager Navigation
-@inject IJSRuntime JS
-
-<div class="sk-layout">
-    <aside class="sk-sidebar">
+<div class="page">
+    <div class="sidebar">
         <NavMenu />
-    </aside>
-
-    <div class="sk-main-wrapper">
-        <header class="sk-topbar">
-            <div class="sk-topbar-left">
-                @if (!string.IsNullOrEmpty(nomUtilisateur))
-                {
-                    <span class="sk-topbar-user">@nomUtilisateur</span>
-                }
-            </div>
-            <div class="sk-topbar-right">
-                <button type="button" class="sk-btn-logout" @onclick="Logout">
-                    Déconnexion
-                </button>
-            </div>
-        </header>
-
-        <main class="sk-content">
-            @Body
-        </main>
     </div>
+
+    <main>
+        <div class="top-row px-4">
+            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
 </div>
 
-@code {
-    private string nomUtilisateur = "";
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            nomUtilisateur = await JS.InvokeAsync<string>("localStorage.getItem", "nom") ?? "";
-            StateHasChanged();
-        }
-    }
-
-    private async Task Logout()
-    {
-        await JS.InvokeVoidAsync("localStorage.removeItem", "role");
-        await JS.InvokeVoidAsync("localStorage.removeItem", "nom");
-        await JS.InvokeVoidAsync("localStorage.removeItem", "userId");
-        Navigation.NavigateTo("/login", true);
-    }
-}
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
