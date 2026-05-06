@@ -1,0 +1,230 @@
+﻿@page "/users-management"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<h2>Gestion des utilisateurs</h2>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@if (users == null)
+{
+    <p>Chargement...</p>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Nom</th>
+                <th>Courriel</th>
+                <th>Rôle</th>
+                <th>Changer rôle</th>
+                <th>Actif</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.Nom</td>
+                    <td>@user.Email</td>
+                    <td>@user.Role</td>
+
+                    <td>
+                        <select class="form-select" @bind="user.Role">
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="ENSEIGNANT">ENSEIGNANT</option>
+                            <option value="ELEVE">ELEVE</option>
+                        </select>
+
+                        <button class="btn btn-primary mt-2" @onclick="() => ChangeRole(user)">
+                            Modifier rôle
+                        </button>
+                    </td>
+
+                    <td>@(user.IsActive ? "Oui" : "Non")</td>
+
+                    <td>
+                        <button class="btn btn-secondary" @onclick="() => OpenEdit(user)">
+                            Modifier profil
+                        </button>
+
+                        <button class="btn btn-warning" @onclick="() => ToggleActive(user.Id)">
+                            @(user.IsActive ? "Désactiver" : "Activer")
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (editUser != null)
+    {
+        <div class="card p-3 mt-3">
+            <h5>Modifier utilisateur</h5>
+
+            <input class="form-control mb-2" @bind="editUserPrenom" placeholder="Prénom" />
+            <input class="form-control mb-2" @bind="editUserNom" placeholder="Nom" />
+            <input class="form-control mb-2" @bind="editUserEmail" placeholder="Email" />
+
+            <button class="btn btn-primary" @onclick="SaveEdit">
+                Enregistrer
+            </button>
+
+            <button class="btn btn-secondary" @onclick="CancelEdit">
+                Annuler
+            </button>
+        </div>
+    }
+}
+
+<button class="btn btn-secondary" @onclick="BackDashboard">
+    Retour dashboard
+</button>
+
+@code {
+    private List<UserItem>? users;
+    private string errorMessage = "";
+    private string successMessage = "";
+
+    private UserItem? editUser;
+    private string editUserPrenom = "";
+    private string editUserNom = "";
+    private string editUserEmail = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadUsers();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadUsers()
+    {
+        users = await Http.GetFromJsonAsync<List<UserItem>>("api/users");
+    }
+
+    private async Task ToggleActive(int id)
+    {
+        errorMessage = "";
+        successMessage = "";
+
+        var response = await Http.PostAsync($"api/users/{id}/toggle-active", null);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            errorMessage = "Impossible de modifier ce compte.";
+            return;
+        }
+
+        successMessage = "✅ Statut utilisateur mis à jour.";
+        await LoadUsers();
+    }
+
+    private async Task ChangeRole(UserItem user)
+    {
+        errorMessage = "";
+        successMessage = "";
+
+        var request = new ChangeRoleRequest
+        {
+            Role = user.Role
+        };
+
+        var response = await Http.PostAsJsonAsync(
+            $"api/users/{user.Id}/change-role",
+            request
+        );
+
+        if (!response.IsSuccessStatusCode)
+        {
+            errorMessage = "Impossible de modifier le rôle.";
+            return;
+        }
+
+        successMessage = "✅ Rôle mis à jour.";
+        await LoadUsers();
+    }
+
+    private void OpenEdit(UserItem u)
+    {
+        errorMessage = "";
+        successMessage = "";
+
+        editUser = u;
+
+        var parts = u.Nom.Trim().Split(' ', 2);
+        editUserPrenom = parts[0];
+        editUserNom = parts.Length > 1 ? parts[1] : "";
+        editUserEmail = u.Email;
+    }
+
+    private void CancelEdit()
+    {
+        editUser = null;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (editUser == null)
+            return;
+
+        errorMessage = "";
+        successMessage = "";
+
+        var res = await Http.PutAsJsonAsync(
+            $"api/profile/{editUser.Id}",
+            new
+            {
+                Prenom = editUserPrenom,
+                Nom = editUserNom,
+                Email = editUserEmail
+            }
+        );
+
+        if (res.IsSuccessStatusCode)
+        {
+            successMessage = "✅ Profil mis à jour.";
+            editUser = null;
+            await LoadUsers();
+        }
+        else
+        {
+            errorMessage = await res.Content.ReadAsStringAsync();
+        }
+    }
+
+    private void BackDashboard()
+    {
+        Navigation.NavigateTo("/dashboard-admin");
+    }
+
+    public class UserItem
+    {
+        public int Id { get; set; }
+        public string Nom { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+
+    public class ChangeRoleRequest
+    {
+        public string Role { get; set; } = "";
+    }
+}

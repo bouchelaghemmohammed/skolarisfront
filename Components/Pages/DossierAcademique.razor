@@ -1,0 +1,200 @@
+@page "/dossier-academique"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@if (dossier == null && !loaded)
+{
+    <div class="sk-loading">Chargement du dossier...</div>
+}
+else if (dossier == null)
+{
+    <div class="sk-empty">
+        Aucun dossier académique trouvé.<br />
+        <small style="color:#90caf9;">Votre compte n'est peut-être pas encore associé à un élève.</small>
+    </div>
+}
+else
+{
+    <!-- En-tête dossier -->
+    <div class="sk-dossier-header">
+        <div class="sk-dossier-avatar">@GetInitiales(dossier.EleveNom)</div>
+        <div>
+            <h2 class="sk-dossier-name">@dossier.EleveNom</h2>
+            <p class="sk-dossier-sub">Dossier académique — Élève</p>
+        </div>
+    </div>
+
+    <!-- Cartes statistiques -->
+    <div class="sk-stats-row">
+        <div class="sk-stat-card">
+            <div class="sk-stat-icon">📚</div>
+            <div class="sk-stat-value">@dossier.TotalCours</div>
+            <div class="sk-stat-label">Total de cours</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-green">
+            <div class="sk-stat-icon">✅</div>
+            <div class="sk-stat-value">@dossier.CoursAvecNote</div>
+            <div class="sk-stat-label">Cours avec note</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-blue">
+            <div class="sk-stat-icon">🎓</div>
+            <div class="sk-stat-value">@dossier.CoursActifs</div>
+            <div class="sk-stat-label">En cours</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-accent">
+            <div class="sk-stat-icon">📊</div>
+            <div class="sk-stat-value">@GetProgression()%</div>
+            <div class="sk-stat-label">Progression</div>
+        </div>
+    </div>
+
+    <!-- Barre de progression -->
+    @if (dossier.TotalCours > 0)
+    {
+        <div class="sk-progress-section">
+            <div class="sk-progress-label">
+                <span>Progression globale</span>
+                <span>@dossier.CoursAvecNote / @dossier.TotalCours cours notés</span>
+            </div>
+            <div class="sk-progress-bar">
+                <div class="sk-progress-fill" style="width: @GetProgression()%"></div>
+            </div>
+        </div>
+    }
+
+    <!-- Tableau des inscriptions -->
+    @if (!dossier.Inscriptions.Any())
+    {
+        <div class="sk-empty" style="margin-top:24px;">
+            Aucune inscription enregistrée pour le moment.
+        </div>
+    }
+    else
+    {
+        <div class="sk-section-title">Mes cours et inscriptions</div>
+        <div class="sk-table-wrapper">
+            <table class="sk-table">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Cours</th>
+                        <th>Session</th>
+                        <th>Année</th>
+                        <th>Établissement</th>
+                        <th>Enseignant</th>
+                        <th>Mode</th>
+                        <th>Note</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var i in dossier.Inscriptions)
+                    {
+                        <tr>
+                            <td><code class="sk-code">@i.CoursCode</code></td>
+                            <td><strong>@i.CoursNom</strong></td>
+                            <td>
+                                <span class="sk-session-badge @GetSessionClass(i.SessionNom)">@i.SessionNom</span>
+                            </td>
+                            <td><span class="sk-year">@i.AnneeLibelle</span></td>
+                            <td>@i.EtablissementNom</td>
+                            <td>@i.EnseignantNom</td>
+                            <td><span class="sk-badge sk-badge-info" style="font-size:11px;">@i.ModeEnseignement</span></td>
+                            <td>
+                                <span class="sk-note @GetNoteClass(i.Note)">@i.Note</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick="Back">← Retour au tableau de bord</button>
+</div>
+
+@code {
+    private DossierDto? dossier;
+    private bool loaded = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "userId");
+            if (int.TryParse(userIdStr, out var userId))
+            {
+                dossier = await Http.GetFromJsonAsync<DossierDto>($"api/dossier/{userId}");
+            }
+
+            loaded = true;
+            StateHasChanged();
+        }
+    }
+
+    private string GetInitiales(string nom)
+    {
+        if (string.IsNullOrWhiteSpace(nom)) return "?";
+        var parts = nom.Trim().Split(' ');
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+            : nom[0].ToString().ToUpper();
+    }
+
+    private int GetProgression()
+    {
+        if (dossier == null || dossier.TotalCours == 0) return 0;
+        return (int)Math.Round((double)dossier.CoursAvecNote / dossier.TotalCours * 100);
+    }
+
+    private string GetSessionClass(string nom) => nom switch
+    {
+        "Automne" => "session-automne",
+        "Hiver"   => "session-hiver",
+        "Ete"     => "session-ete",
+        _         => ""
+    };
+
+    private string GetNoteClass(string note)
+    {
+        if (note == "—") return "note-vide";
+        if (decimal.TryParse(note, out var v))
+        {
+            if (v >= 17) return "note-excellent";
+            if (v >= 14) return "note-bien";
+            if (v >= 10) return "note-moyen";
+            return "note-autre";
+        }
+        return "note-autre";
+    }
+
+    private void Back() => Navigation.NavigateTo("/dashboard-eleve");
+
+    public class DossierDto
+    {
+        public int EleveId { get; set; }
+        public string EleveNom { get; set; } = "";
+        public List<InscriptionDto> Inscriptions { get; set; } = new();
+        public int TotalCours { get; set; }
+        public int CoursAvecNote { get; set; }
+        public int CoursActifs { get; set; }
+    }
+
+    public class InscriptionDto
+    {
+        public string CoursNom { get; set; } = "";
+        public string CoursCode { get; set; } = "";
+        public string SessionNom { get; set; } = "";
+        public string SessionLibelle { get; set; } = "";
+        public string AnneeLibelle { get; set; } = "";
+        public string EtablissementNom { get; set; } = "";
+        public string EnseignantNom { get; set; } = "";
+        public string Note { get; set; } = "";
+        public string ModeEnseignement { get; set; } = "";
+        public DateTime DateInscription { get; set; }
+    }
+}

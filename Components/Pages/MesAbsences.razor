@@ -1,0 +1,97 @@
+﻿@page "/eleve/absences"
+@inject HttpClient Http
+@inject IJSRuntime JS
+@using System.Net.Http.Json
+
+<h3>Mes absences</h3>
+
+@if (absences == null)
+{
+    <p>Chargement...</p>
+}
+else if (!absences.Any())
+{
+    <p>Aucune absence trouvée</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Statut</th>
+                <th>Date</th>
+                <th>Cours</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in absences)
+            {
+                <tr>
+                    <td>@a.Type</td>
+                    <td>@a.Statut</td>
+                    <td>@a.DateAbsence.ToString("yyyy-MM-dd")</td>
+                    <td>@GetCoursLabel(a.IdCoursOffert)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+
+    private List<Absence>? absences;
+    private List<CoursOffertDto>? coursOfferts;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var userId = await JS.InvokeAsync<string>("localStorage.getItem", "userId");
+
+            coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert") ?? new();
+
+            if (!string.IsNullOrEmpty(userId))
+            {
+                // api/absences/user/{userId} fait le lien IdUtilisateur → IdEleve côté backend
+                var res = await Http.GetAsync($"api/absences/user/{userId}");
+                if (res.IsSuccessStatusCode)
+                    absences = await res.Content.ReadFromJsonAsync<List<Absence>>() ?? new();
+                else
+                    absences = new();
+            }
+            else
+            {
+                absences = new();
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    private string GetCoursLabel(int idCoursOffert)
+    {
+        var cours = coursOfferts?.FirstOrDefault(c => c.IdCoursOffert == idCoursOffert);
+        if (cours == null) return $"Cours #{idCoursOffert}";
+        return !string.IsNullOrEmpty(cours.NomCours)
+            ? $"{cours.NomCours} ({cours.ModeEnseignement})"
+            : $"Cours #{idCoursOffert} ({cours.ModeEnseignement})";
+    }
+
+    public class Absence
+    {
+        public int IdAbsence { get; set; }
+        public string Type { get; set; } = "";
+        public string Statut { get; set; } = "";
+        public DateTime DateAbsence { get; set; }
+        public int IdEleve { get; set; }
+        public int IdCoursOffert { get; set; }
+    }
+
+    public class CoursOffertDto
+    {
+        public int IdCoursOffert { get; set; }
+        public string ModeEnseignement { get; set; } = "";
+        public string? NomCours { get; set; }
+    }
+}

@@ -1,0 +1,210 @@
+﻿@page "/admin/absences"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject System.Text.Json.JsonSerializerOptions JsonOptions
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.WebUtilities
+
+<button class="btn btn-secondary mb-3" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>
+    ← Retour au dashboard
+</button>
+
+<h3>Liste des absences</h3>
+
+<button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/admin/absences/create")'>
+    ➕ Créer une absence
+</button>
+<br />
+<br />
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert @alertClass" role="alert">
+        @message
+    </div>
+}
+
+@if (absences == null)
+{
+    <p>Chargement...</p>
+}
+else if (!absences.Any())
+{
+    <p>Aucune absence trouvée</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Statut</th>
+                <th>Date</th>
+                <th>Élève</th>
+                <th>Cours</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in absences)
+            {
+                <tr>
+                    <td>@a.IdAbsence</td>
+                    <td>@a.Type</td>
+                    <td>@a.Statut</td>
+                    <td>@a.DateAbsence.ToString("yyyy-MM-dd")</td>
+                    <td>@GetEleveLabel(a.IdEleve)</td>
+                    <td>@GetCoursLabel(a.IdCoursOffert)</td>
+                    <td>
+                        @{ var estApprouvee = a.Statut == "Approuvee"; var estRefusee = a.Statut == "Refusee"; }
+                        @if (!estApprouvee)
+                        {
+                            <button class="btn btn-success btn-sm me-1" @onclick='() => ChangerStatut(a, "Approuvee")'>
+                                ✅ Approuver
+                            </button>
+                        }
+                        @if (!estRefusee)
+                        {
+                            <button class="btn btn-warning btn-sm me-1" @onclick='() => ChangerStatut(a, "Refusee")'>
+                                ❌ Refuser
+                            </button>
+                        }
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteAbsence(a.IdAbsence)">
+                            🗑️ Supprimer
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Absence>? absences;
+    private List<EleveDto>? eleves;
+    private List<CoursOffertDto>? coursOfferts;
+    private string message = "";
+    private string alertClass = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Détecte le paramètre ?created=true dans l'URL
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("created", out var created) && created == "true")
+        {
+            message = "✅ Absence créée avec succès!";
+            alertClass = "alert-success";
+        }
+
+        await ChargerDonnees();
+    }
+
+    private async Task ChargerDonnees()
+    {
+        // Charge tout en parallèle pour aller plus vite
+        var absencesTask = Http.GetFromJsonAsync<List<Absence>>("api/absences", JsonOptions);
+        var elevesTask = Http.GetFromJsonAsync<List<EleveDto>>("api/eleves", JsonOptions);
+        var coursTask = Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert", JsonOptions);
+
+        await Task.WhenAll(absencesTask, elevesTask, coursTask);
+
+        absences = absencesTask.Result;
+        eleves = elevesTask.Result;
+        coursOfferts = coursTask.Result;
+    }
+
+    private string GetEleveLabel(int idEleve)
+    {
+        var eleve = eleves?.FirstOrDefault(e => e.IdEleve == idEleve);
+        if (eleve == null) return $"Inconnu (#{idEleve})";
+        return $"{eleve.Prenom} {eleve.Nom} ({eleve.Matricule})";
+    }
+
+    private string GetCoursLabel(int idCoursOffert)
+    {
+        var cours = coursOfferts?.FirstOrDefault(c => c.IdCoursOffert == idCoursOffert);
+        if (cours == null) return $"Inconnu (#{idCoursOffert})";
+        // Affiche le nom du cours s'il est présent (après modif backend), sinon fallback sur l'ID
+        return !string.IsNullOrEmpty(cours.NomCours)
+            ? $"{cours.NomCours} ({cours.ModeEnseignement})"
+            : $"Cours #{cours.IdCoursOffert} ({cours.ModeEnseignement})";
+    }
+
+    private async Task ChangerStatut(Absence absence, string nouveauStatut)
+    {
+        var body = new
+        {
+            absence.IdAbsence,
+            absence.Type,
+            Statut = nouveauStatut,
+            absence.DateAbsence,
+            absence.IdEleve,
+            absence.IdCoursOffert
+        };
+
+        var res = await Http.PutAsJsonAsync($"api/absences/{absence.IdAbsence}", body, JsonOptions);
+        if (res.IsSuccessStatusCode)
+        {
+            message = nouveauStatut == "Approuvee" ? "✅ Absence approuvée." : "✅ Absence refusée.";
+            alertClass = "alert-success";
+            await ChargerDonnees();
+        }
+        else
+        {
+            message = $"❌ Erreur : {await res.Content.ReadAsStringAsync()}";
+            alertClass = "alert-danger";
+        }
+    }
+
+    private async Task DeleteAbsence(int id)
+    {
+        bool confirmation = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Voulez-vous vraiment supprimer cette absence ?"
+        );
+        if (!confirmation)
+            return;
+
+        var res = await Http.DeleteAsync($"api/absences/{id}");
+        if (res.IsSuccessStatusCode)
+        {
+            message = "✅ Absence supprimée avec succès.";
+            alertClass = "alert-success";
+            await ChargerDonnees();
+        }
+        else
+        {
+            var erreur = await res.Content.ReadAsStringAsync();
+            message = $"❌ Erreur suppression : {erreur}";
+            alertClass = "alert-danger";
+        }
+    }
+
+    public class Absence
+    {
+        public int IdAbsence { get; set; }
+        public string Type { get; set; } = "";
+        public string Statut { get; set; } = "";
+        public DateTime DateAbsence { get; set; }
+        public int IdEleve { get; set; }
+        public int IdCoursOffert { get; set; }
+    }
+
+    public class EleveDto
+    {
+        public int IdEleve { get; set; }
+        public string Matricule { get; set; } = "";
+        public string Nom { get; set; } = "";
+        public string Prenom { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+
+    public class CoursOffertDto
+    {
+        public int IdCoursOffert { get; set; }
+        public string ModeEnseignement { get; set; } = "";
+        public string? NomCours { get; set; }
+    }
+}

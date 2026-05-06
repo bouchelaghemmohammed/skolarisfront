@@ -1,0 +1,106 @@
+﻿@page "/admin/inscriptions/create"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+
+<h3>Inscrire un élève à un cours offert</h3>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
+}
+
+<div>
+    <label>Élève</label>
+    <select class="form-control" @bind="inscription.IdEleve">
+        <option value="0">-- Sélectionner --</option>
+        @if (eleves != null)
+        {
+            @foreach (var e in eleves)
+            {
+                <option value="@e.IdEleve">@e.Prenom @e.Nom (@e.Matricule)</option>
+            }
+        }
+    </select>
+</div>
+<br />
+
+<div>
+    <label>Cours offert</label>
+    <select class="form-control" @bind="inscription.IdCoursOffert">
+        <option value="0">-- Sélectionner --</option>
+        @if (coursOfferts != null)
+        {
+            @foreach (var c in coursOfferts)
+            {
+                <option value="@c.IdCoursOffert">
+                    @(string.IsNullOrEmpty(c.NomCours) ? $"Cours #{c.IdCoursOffert}" : c.NomCours)
+                </option>
+            }
+        }
+    </select>
+</div>
+<br />
+
+<button class="btn btn-primary" @onclick="Create">Inscrire</button>
+<button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/admin/inscriptions")'>Retour</button>
+
+@code {
+    private InscriptionCreate inscription = new();
+    private List<EleveDto>? eleves;
+    private List<CoursOffertDto>? coursOfferts;
+    private string message = "";
+    private bool isError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        eleves = await Http.GetFromJsonAsync<List<EleveDto>>("api/eleves");
+        coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
+    }
+
+    private async Task Create()
+    {
+        message = "";
+        isError = false;
+
+        if (inscription.IdEleve == 0 || inscription.IdCoursOffert == 0)
+        {
+            message = "Veuillez sélectionner un élève et un cours.";
+            isError = true;
+            return;
+        }
+
+        var res = await Http.PostAsJsonAsync("api/inscriptions", inscription);
+        if (res.IsSuccessStatusCode)
+        {
+            message = "✅ Inscription créée avec succès.";
+            await Task.Delay(1000);
+            Navigation.NavigateTo("/admin/inscriptions?created=true");
+        }
+        else
+        {
+            message = await res.Content.ReadAsStringAsync();
+            isError = true;
+        }
+    }
+
+    public class InscriptionCreate
+    {
+        public int IdEleve { get; set; }
+        public int IdCoursOffert { get; set; }
+    }
+
+    public class EleveDto
+    {
+        public int IdEleve { get; set; }
+        public string Matricule { get; set; } = "";
+        public string Nom { get; set; } = "";
+        public string Prenom { get; set; } = "";
+    }
+
+    public class CoursOffertDto
+    {
+        public int IdCoursOffert { get; set; }
+        public string? NomCours { get; set; }
+    }
+}

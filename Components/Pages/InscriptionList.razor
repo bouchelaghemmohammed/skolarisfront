@@ -1,0 +1,205 @@
+﻿@page "/admin/inscriptions"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.WebUtilities
+
+<button class="btn btn-secondary mb-3" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>
+    ← Retour au dashboard
+</button>
+
+<h3>Inscriptions</h3>
+
+<button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/admin/inscriptions/create")'>
+    ➕ Nouvelle inscription
+</button>
+<br />
+<br />
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert alert-info">@message</div>
+}
+
+@if (inscriptions == null)
+{
+    <p>Chargement...</p>
+}
+else
+{
+    <!-- Filtres -->
+    <div class="mb-3 d-flex gap-3">
+        <div>
+            <label>Filtrer par élève</label>
+            <select class="form-select" @bind="filtreEleveId" @bind:after="AppliquerFiltres">
+                <option value="0">Tous</option>
+                @foreach (var e in eleves ?? new())
+                {
+                    <option value="@e.IdEleve">@e.Prenom @e.Nom (@e.Matricule)</option>
+                }
+            </select>
+        </div>
+
+        <div>
+            <label>Filtrer par cours</label>
+            <select class="form-select" @bind="filtreCoursId" @bind:after="AppliquerFiltres">
+                <option value="0">Tous</option>
+                @foreach (var c in coursOfferts ?? new())
+                {
+                    <option value="@c.IdCoursOffert">
+                        @(string.IsNullOrEmpty(c.NomCours) ? $"Cours #{c.IdCoursOffert}" : c.NomCours)
+                    </option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (!inscriptionsFiltrees.Any())
+    {
+        <p>Aucune inscription trouvée</p>
+    }
+    else
+    {
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Élève</th>
+                    <th>Cours offert</th>
+                    <th>Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var i in inscriptionsFiltrees)
+                {
+                    <tr>
+                        <td>@i.IdInscription</td>
+                        <td>@GetEleveLabel(i.IdEleve)</td>
+                        <td>@GetCoursLabel(i.IdCoursOffert)</td>
+                        <td>@i.DateInscription.ToString("yyyy-MM-dd")</td>
+                        <td>
+                            <button class="btn btn-danger" @onclick="() => DeleteInscription(i.IdInscription)">
+                                🗑️ Supprimer
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private List<Inscription>? inscriptions;
+    private List<Inscription> inscriptionsFiltrees = new();
+    private List<EleveDto>? eleves;
+    private List<CoursOffertDto>? coursOfferts;
+    private string message = "";
+
+    private int filtreEleveId = 0;
+    private int filtreCoursId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Message après création
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("created", out var created) && created == "true")
+        {
+            message = "✅ Inscription créée avec succès!";
+        }
+
+        await ChargerDonnees();
+    }
+
+    private async Task ChargerDonnees()
+    {
+        try
+        {
+            var inscriptionsTask = Http.GetFromJsonAsync<List<Inscription>>("api/inscriptions");
+            var elevesTask = Http.GetFromJsonAsync<List<EleveDto>>("api/eleves");
+            var coursTask = Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
+
+            await Task.WhenAll(inscriptionsTask, elevesTask, coursTask);
+
+            inscriptions = inscriptionsTask.Result ?? new();
+            eleves = elevesTask.Result ?? new();
+            coursOfferts = coursTask.Result ?? new();
+        }
+        catch
+        {
+            inscriptions ??= new();
+            eleves ??= new();
+            coursOfferts ??= new();
+        }
+
+        AppliquerFiltres();
+    }
+
+    private void AppliquerFiltres()
+    {
+        if (inscriptions == null) return;
+
+        inscriptionsFiltrees = inscriptions
+            .Where(i => filtreEleveId == 0 || i.IdEleve == filtreEleveId)
+            .Where(i => filtreCoursId == 0 || i.IdCoursOffert == filtreCoursId)
+            .ToList();
+    }
+
+    private string GetEleveLabel(int idEleve)
+    {
+        var eleve = eleves?.FirstOrDefault(e => e.IdEleve == idEleve);
+        if (eleve == null) return $"Inconnu (#{idEleve})";
+        return $"{eleve.Prenom} {eleve.Nom} ({eleve.Matricule})";
+    }
+
+    private string GetCoursLabel(int idCoursOffert)
+    {
+        var cours = coursOfferts?.FirstOrDefault(c => c.IdCoursOffert == idCoursOffert);
+        if (cours == null) return $"Inconnu (#{idCoursOffert})";
+        return !string.IsNullOrEmpty(cours.NomCours)
+            ? $"{cours.NomCours} ({cours.ModeEnseignement})"
+            : $"Cours #{cours.IdCoursOffert} ({cours.ModeEnseignement})";
+    }
+
+    private async Task DeleteInscription(int id)
+    {
+        bool confirmation = await JS.InvokeAsync<bool>("confirm", "Supprimer cette inscription ?");
+        if (!confirmation) return;
+
+        var res = await Http.DeleteAsync($"api/inscriptions/{id}");
+        if (res.IsSuccessStatusCode)
+        {
+            message = "✅ Inscription supprimée.";
+            await ChargerDonnees();
+        }
+        else
+        {
+            message = "❌ Erreur suppression.";
+        }
+    }
+
+    public class Inscription
+    {
+        public int IdInscription { get; set; }
+        public int IdEleve { get; set; }
+        public int IdCoursOffert { get; set; }
+        public DateTime DateInscription { get; set; }
+    }
+
+    public class EleveDto
+    {
+        public int IdEleve { get; set; }
+        public string Matricule { get; set; } = "";
+        public string Nom { get; set; } = "";
+        public string Prenom { get; set; } = "";
+    }
+
+    public class CoursOffertDto
+    {
+        public int IdCoursOffert { get; set; }
+        public string? NomCours { get; set; }
+        public string ModeEnseignement { get; set; } = "";
+    }
+}

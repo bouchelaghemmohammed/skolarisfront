@@ -1,0 +1,191 @@
+@page "/eleve/notes"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<h2 class="sk-section-title">Mes notes & bulletins</h2>
+
+@if (!loaded)
+{
+    <div class="sk-loading">Chargement...</div>
+}
+else
+{
+    <div class="sk-stats-row">
+        <div class="sk-stat-card">
+            <div class="sk-stat-icon">📝</div>
+            <div class="sk-stat-value">@notes.Count</div>
+            <div class="sk-stat-label">Notes saisies</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-blue">
+            <div class="sk-stat-icon">📄</div>
+            <div class="sk-stat-value">@bulletins.Count</div>
+            <div class="sk-stat-label">Bulletins disponibles</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-green">
+            <div class="sk-stat-icon">📊</div>
+            <div class="sk-stat-value">@MoyenneGlobale()</div>
+            <div class="sk-stat-label">Moyenne globale</div>
+        </div>
+    </div>
+
+    <div class="sk-section-title" style="margin-top:32px;">Bulletins par session</div>
+
+    @if (!bulletins.Any())
+    {
+        <div class="sk-empty">Aucun bulletin n'a encore été généré.</div>
+    }
+    else
+    {
+        <div class="sk-table-wrapper">
+            <table class="sk-table">
+                <thead>
+                    <tr>
+                        <th>Année</th>
+                        <th>Session</th>
+                        <th>Moyenne générale</th>
+                        <th>Mention</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in bulletins)
+                    {
+                        <tr>
+                            <td><span class="sk-year">@b.AnneeLibelle</span></td>
+                            <td>
+                                <span class="sk-session-badge @GetSessionClass(b.SessionType)">@b.SessionLibelle</span>
+                            </td>
+                            <td><span class="sk-note @GetNoteClass(b.MoyenneGenerale)">@b.MoyenneGenerale.ToString("F2")</span></td>
+                            <td><span class="sk-badge sk-badge-info">@b.Mention</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <div class="sk-section-title" style="margin-top:32px;">Détail des notes</div>
+
+    @if (!notes.Any())
+    {
+        <div class="sk-empty">Aucune note n'a encore été saisie.</div>
+    }
+    else
+    {
+        <div class="sk-table-wrapper">
+            <table class="sk-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Code</th>
+                        <th>Cours</th>
+                        <th>Session</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Pondération</th>
+                        <th>Note</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var n in notes)
+                    {
+                        <tr>
+                            <td>@n.DateEvaluation.ToString("yyyy-MM-dd")</td>
+                            <td><code class="sk-code">@n.CoursCode</code></td>
+                            <td><strong>@n.CoursNom</strong></td>
+                            <td>@n.SessionLibelle</td>
+                            <td><span class="sk-badge sk-badge-info" style="font-size:11px;">@n.Type</span></td>
+                            <td>@(string.IsNullOrEmpty(n.Description) ? "—" : n.Description)</td>
+                            <td>@n.Ponderation.ToString("F2")%</td>
+                            <td><span class="sk-note @GetNoteClass(n.Valeur)">@n.Valeur.ToString("F2")</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick="Back">← Retour au tableau de bord</button>
+</div>
+
+@code {
+    private List<NoteDto> notes = new();
+    private List<BulletinDto> bulletins = new();
+    private bool loaded = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "userId");
+            if (int.TryParse(userIdStr, out var userId))
+            {
+                try
+                {
+                    notes = await Http.GetFromJsonAsync<List<NoteDto>>($"api/notes/utilisateur/{userId}") ?? new();
+                    bulletins = await Http.GetFromJsonAsync<List<BulletinDto>>($"api/bulletins/utilisateur/{userId}") ?? new();
+                }
+                catch
+                {
+                    notes = new();
+                    bulletins = new();
+                }
+            }
+
+            loaded = true;
+            StateHasChanged();
+        }
+    }
+
+    private string MoyenneGlobale()
+    {
+        if (!bulletins.Any()) return "—";
+        var moy = bulletins.Average(b => b.MoyenneGenerale);
+        return moy.ToString("F2");
+    }
+
+    private string GetSessionClass(string type) => type switch
+    {
+        "Automne" => "session-automne",
+        "Hiver"   => "session-hiver",
+        "Ete"     => "session-ete",
+        _         => ""
+    };
+
+    private string GetNoteClass(decimal v)
+    {
+        if (v >= 90) return "note-excellent";
+        if (v >= 75) return "note-bien";
+        if (v >= 60) return "note-moyen";
+        return "note-autre";
+    }
+
+    private void Back() => Navigation.NavigateTo("/dashboard-eleve");
+
+    public class NoteDto
+    {
+        public int IdNote { get; set; }
+        public string CoursNom { get; set; } = "";
+        public string CoursCode { get; set; } = "";
+        public string SessionLibelle { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string? Description { get; set; }
+        public decimal Valeur { get; set; }
+        public decimal Ponderation { get; set; }
+        public DateTime DateEvaluation { get; set; }
+    }
+
+    public class BulletinDto
+    {
+        public int IdBulletin { get; set; }
+        public string SessionLibelle { get; set; } = "";
+        public string SessionType { get; set; } = "";
+        public string AnneeLibelle { get; set; } = "";
+        public decimal MoyenneGenerale { get; set; }
+        public string Mention { get; set; } = "";
+    }
+}
