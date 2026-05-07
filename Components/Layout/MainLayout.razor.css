@@ -1,10 +1,9 @@
-<<<<<<< HEAD
 /* Layout scoped styles handled by skolaris.css */
 
 #blazor-error-ui {
     color-scheme: light only;
     background: #fff3e0;
-=======
+    
 .page {
     position: relative;
     display: flex;
@@ -86,7 +85,7 @@ main {
 #blazor-error-ui {
     color-scheme: light only;
     background: lightyellow;
->>>>>>> dev3-aicha
+
     bottom: 0;
     box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
     box-sizing: border-box;
@@ -98,18 +97,17 @@ main {
     z-index: 1000;
 }
 
-<<<<<<< HEAD
+
 #blazor-error-ui .dismiss {
     cursor: pointer;
     position: absolute;
     right: 0.75rem;
     top: 0.5rem;
 }
-=======
+
     #blazor-error-ui .dismiss {
         cursor: pointer;
         position: absolute;
         right: 0.75rem;
         top: 0.5rem;
     }
->>>>>>> dev3-aicha
