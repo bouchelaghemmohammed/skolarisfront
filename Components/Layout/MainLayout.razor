@@ -16,7 +16,6 @@
                     <span class="sk-topbar-user">@nomUtilisateur</span>
                 }
             </div>
-
             <div class="sk-topbar-right">
                 <button type="button" class="sk-btn-logout" @onclick="Logout">
                     Déconnexion
@@ -37,11 +36,7 @@
     {
         if (firstRender)
         {
-            nomUtilisateur = await JS.InvokeAsync<string>(
-                "localStorage.getItem",
-                "nom"
-            ) ?? "";
-
+            nomUtilisateur = await JS.InvokeAsync<string>("localStorage.getItem", "nom") ?? "";
             StateHasChanged();
         }
     }
@@ -51,6 +46,6 @@
         await JS.InvokeVoidAsync("localStorage.removeItem", "role");
         await JS.InvokeVoidAsync("localStorage.removeItem", "nom");
         await JS.InvokeVoidAsync("localStorage.removeItem", "userId");
-        await JS.InvokeVoidAsync("eval", "window.location.replace('/login')");
+        Navigation.NavigateTo("/login", true);
     }
 }

@@ -1,5 +1,4 @@
 @page "/login"
-
 @using Skolaris.Client.Components.Layout
 @layout LoginLayout
 @rendermode InteractiveServer
@@ -10,12 +9,9 @@
 
 <div class="login-page">
     <div class="login-card">
-
         <div class="logo-row">
             <div class="logo">S</div>
-            <span style="font-size:22px; font-weight:700; color:#1565c0;">
-                Skolaris
-            </span>
+            <span style="font-size:22px; font-weight:700; color:#1565c0; letter-spacing:-0.5px;">Skolaris</span>
         </div>
 
         <h1>Connexion</h1>
@@ -23,7 +19,7 @@
 
         @if (!string.IsNullOrEmpty(errorMessage))
         {
-            <div class="error-message">
+            <div class="error-message" style="margin-bottom:18px; animation: slideDown 0.3s ease;">
                 @errorMessage
             </div>
         }
@@ -33,60 +29,59 @@
 
             <div class="form-group">
                 <label>Courriel</label>
-
-                <InputText class="form-control" @bind-Value="loginModel.Email" placeholder="admin@gmail.com"
-                           disabled="@isLoading" />
-
+                <InputText class="form-control" @bind-Value="loginModel.Email"
+                           placeholder="admin@gmail.com" disabled="@isLoading" />
                 <ValidationMessage For="@(() => loginModel.Email)" />
             </div>
 
             <div class="form-group">
                 <label>Mot de passe</label>
-
-                <InputText type="password" class="form-control" @bind-Value="loginModel.Password" placeholder="123456"
-                           disabled="@isLoading" />
-
+                <InputText type="password" class="form-control" @bind-Value="loginModel.Password"
+                           placeholder="123456" disabled="@isLoading" />
                 <ValidationMessage For="@(() => loginModel.Password)" />
             </div>
 
             <button type="submit" class="btn-login" disabled="@isLoading">
-
                 @if (isLoading)
                 {
-                    <span>Connexion...</span>
+                    <span>⏳ Connexion en cours...</span>
                 }
                 else
                 {
                     <span>Se connecter</span>
                 }
-
             </button>
-
         </EditForm>
 
-        <div style="text-align:center; margin-top:14px;">
-            <a href="/forgot-password" class="forgot-link" style="font-size:13px;">
-                Mot de passe oublié ?
-            </a>
-        </div>
-
+        <a href="/forgot-password" class="forgot-link">Mot de passe oublié ?</a>
     </div>
 </div>
 
+<style>
+    @@keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
 @code {
-
     private LoginModel loginModel = new();
-
     private string errorMessage = "";
-
     private bool isLoading = false;
 
     private async Task SeConnecter()
     {
-        if (string.IsNullOrWhiteSpace(loginModel.Email)
-            || string.IsNullOrWhiteSpace(loginModel.Password))
+        // Valider les champs
+        if (string.IsNullOrWhiteSpace(loginModel.Email) || string.IsNullOrWhiteSpace(loginModel.Password))
         {
-            errorMessage = "Courriel et mot de passe obligatoires.";
+            errorMessage = "Courriel et mot de passe sont obligatoires.";
             return;
         }
 
@@ -95,10 +90,7 @@
 
         try
         {
-            var response = await Http.PostAsJsonAsync(
-                "api/auth/login",
-                loginModel
-            );
+            var response = await Http.PostAsJsonAsync("api/auth/login", loginModel);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -107,74 +99,56 @@
                 return;
             }
 
-            var user = await response.Content
-                .ReadFromJsonAsync<UserResponse>();
+            var user = await response.Content.ReadFromJsonAsync<UserResponse>();
 
             if (user == null)
             {
-                errorMessage = "Erreur de connexion.";
+                errorMessage = "Erreur de connexion. Veuillez réessayer.";
                 isLoading = false;
                 return;
             }
 
-            await JS.InvokeVoidAsync(
-                "localStorage.setItem",
-                "role",
-                user.Role
-            );
-
-            await JS.InvokeVoidAsync(
-                "localStorage.setItem",
-                "nom",
-                user.Nom
-            );
-
-            await JS.InvokeVoidAsync(
-                "localStorage.setItem",
-                "userId",
-                user.Id.ToString()
-            );
+            await JS.InvokeVoidAsync("localStorage.setItem", "role", user.Role);
+            await JS.InvokeVoidAsync("localStorage.setItem", "nom", user.Nom);
+            await JS.InvokeVoidAsync("localStorage.setItem", "userId", user.Id.ToString());
 
             var role = user.Role.Trim().ToUpper();
 
             if (role == "ADMIN")
                 Navigation.NavigateTo("/dashboard-admin");
-
             else if (role == "ENSEIGNANT")
                 Navigation.NavigateTo("/dashboard-enseignant");
-
             else if (role == "ELEVE")
                 Navigation.NavigateTo("/dashboard-eleve");
-
             else
-                errorMessage = "Rôle inconnu.";
+                errorMessage = "Rôle inconnu : " + user.Role;
         }
-        catch
+        catch (HttpRequestException ex)
         {
-            errorMessage = "Erreur serveur.";
+            errorMessage = "Erreur réseau. Vérifiez votre connexion.";
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Une erreur est survenue. Veuillez réessayer.";
             isLoading = false;
         }
     }
 
     public class LoginModel
     {
-        [System.ComponentModel.DataAnnotations.Required(
-            ErrorMessage = "Courriel obligatoire.")]
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Courriel obligatoire.")]
         public string Email { get; set; } = "";
 
-        [System.ComponentModel.DataAnnotations.Required(
-            ErrorMessage = "Mot de passe obligatoire.")]
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Mot de passe obligatoire.")]
         public string Password { get; set; } = "";
     }
 
     public class UserResponse
     {
         public int Id { get; set; }
-
         public string Nom { get; set; } = "";
-
         public string Email { get; set; } = "";
-
         public string Role { get; set; } = "";
     }
 }

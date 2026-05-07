@@ -1,46 +1,69 @@
-﻿@page "/admin/inscriptions"
+@page "/admin/inscriptions"
+@rendermode InteractiveServer
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.WebUtilities
 
-<div class="sk-page-header">
-    <h2 class="sk-page-title">📝 Inscriptions</h2>
-    <button class="sk-btn sk-btn-primary" @onclick='() => Navigation.NavigateTo("/admin/inscriptions/create")'>
-        + Nouvelle inscription
-    </button>
-</div>
-
-@if (!string.IsNullOrEmpty(message))
-{
-    <div class="sk-alert @(message.StartsWith("✅") ? "sk-alert-success" : "sk-alert-danger")">@message</div>
-}
-
-@if (inscriptions == null)
+@if (!loaded)
 {
     <div class="sk-loading">Chargement des inscriptions...</div>
 }
 else
 {
-    <!-- Filtres -->
-    <div class="sk-filter-bar">
-        <div class="sk-filter-group">
-            <label>Élève</label>
-            <select class="sk-select" @bind="filtreEleveId" @bind:after="AppliquerFiltres">
-                <option value="0">Tous les élèves</option>
-                @foreach (var e in eleves ?? new())
+    <div class="sk-dossier-header">
+        <div class="sk-dossier-avatar">📝</div>
+        <div>
+            <h2 class="sk-dossier-name">Gestion des inscriptions</h2>
+            <p class="sk-dossier-sub">Administration — Inscriptions aux cours</p>
+        </div>
+    </div>
+
+    <div class="sk-stats-row">
+        <div class="sk-stat-card">
+            <div class="sk-stat-icon">📝</div>
+            <div class="sk-stat-value">@inscriptions.Count</div>
+            <div class="sk-stat-label">Total inscriptions</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-blue">
+            <div class="sk-stat-icon">🎓</div>
+            <div class="sk-stat-value">@inscriptions.Select(i => i.IdEleve).Distinct().Count()</div>
+            <div class="sk-stat-label">Élèves inscrits</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-accent">
+            <div class="sk-stat-icon">📚</div>
+            <div class="sk-stat-value">@inscriptions.Select(i => i.IdCoursOffert).Distinct().Count()</div>
+            <div class="sk-stat-label">Cours concernés</div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="sk-alert @(message.StartsWith("❌") ? "sk-alert-danger" : "sk-alert-success")">@message</div>
+    }
+
+    <div class="sk-section-title" style="margin-top:32px;">Liste des inscriptions</div>
+
+    <div class="mb-3 d-flex gap-3 align-items-end flex-wrap">
+        <button class="sk-btn sk-btn-primary" @onclick='() => Navigation.NavigateTo("/admin/inscriptions/create")'>
+            ➕ Nouvelle inscription
+        </button>
+        <div>
+            <label class="form-label mb-1">Filtrer par élève</label>
+            <select class="form-select" @bind="filtreEleveId" @bind:after="AppliquerFiltres">
+                <option value="0">Tous</option>
+                @foreach (var e in eleves)
                 {
                     <option value="@e.IdEleve">@e.Prenom @e.Nom (@e.Matricule)</option>
                 }
             </select>
         </div>
-
-        <div class="sk-filter-group">
-            <label>Cours offert</label>
-            <select class="sk-select" @bind="filtreCoursId" @bind:after="AppliquerFiltres">
-                <option value="0">Tous les cours</option>
-                @foreach (var c in coursOfferts ?? new())
+        <div>
+            <label class="form-label mb-1">Filtrer par cours</label>
+            <select class="form-select" @bind="filtreCoursId" @bind:after="AppliquerFiltres">
+                <option value="0">Tous</option>
+                @foreach (var c in coursOfferts)
                 {
                     <option value="@c.IdCoursOffert">
                         @(string.IsNullOrEmpty(c.NomCours) ? $"Cours #{c.IdCoursOffert}" : c.NomCours)
@@ -60,25 +83,21 @@ else
             <table class="sk-table">
                 <thead>
                     <tr>
-                        <th>#</th>
+                        <th>Date</th>
                         <th>Élève</th>
                         <th>Cours offert</th>
-                        <th>Date</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var i in inscriptionsFiltrees)
+                    @foreach (var i in inscriptionsFiltrees.OrderByDescending(i => i.DateInscription))
                     {
                         <tr>
-                            <td><code class="sk-code">@i.IdInscription</code></td>
+                            <td>@i.DateInscription.ToString("yyyy-MM-dd")</td>
                             <td>@GetEleveLabel(i.IdEleve)</td>
                             <td>@GetCoursLabel(i.IdCoursOffert)</td>
-                            <td><span class="sk-year">@i.DateInscription.ToString("yyyy-MM-dd")</span></td>
                             <td class="sk-actions">
-                                <button class="sk-btn sk-btn-sm sk-btn-danger" @onclick="() => DeleteInscription(i.IdInscription)">
-                                    Supprimer
-                                </button>
+                                <button class="sk-btn sk-btn-sm sk-btn-danger" @onclick="() => DeleteInscription(i.IdInscription)">Supprimer</button>
                             </td>
                         </tr>
                     }
@@ -89,31 +108,28 @@ else
 }
 
 <div class="mt-4">
-    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>
-        ← Retour au tableau de bord
-    </button>
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>← Retour au tableau de bord</button>
 </div>
 
 @code {
-    private List<Inscription>? inscriptions;
+    private List<Inscription> inscriptions = new();
     private List<Inscription> inscriptionsFiltrees = new();
-    private List<EleveDto>? eleves;
-    private List<CoursOffertDto>? coursOfferts;
+    private List<EleveDto> eleves = new();
+    private List<CoursOffertDto> coursOfferts = new();
     private string message = "";
+    private bool loaded = false;
 
     private int filtreEleveId = 0;
     private int filtreCoursId = 0;
 
     protected override async Task OnInitializedAsync()
     {
-        // Message après création
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("created", out var created) && created == "true")
-        {
             message = "✅ Inscription créée avec succès!";
-        }
 
         await ChargerDonnees();
+        loaded = true;
     }
 
     private async Task ChargerDonnees()
@@ -132,9 +148,9 @@ else
         }
         catch
         {
-            inscriptions ??= new();
-            eleves ??= new();
-            coursOfferts ??= new();
+            inscriptions = new();
+            eleves = new();
+            coursOfferts = new();
         }
 
         AppliquerFiltres();
@@ -142,8 +158,6 @@ else
 
     private void AppliquerFiltres()
     {
-        if (inscriptions == null) return;
-
         inscriptionsFiltrees = inscriptions
             .Where(i => filtreEleveId == 0 || i.IdEleve == filtreEleveId)
             .Where(i => filtreCoursId == 0 || i.IdCoursOffert == filtreCoursId)
@@ -152,18 +166,17 @@ else
 
     private string GetEleveLabel(int idEleve)
     {
-        var eleve = eleves?.FirstOrDefault(e => e.IdEleve == idEleve);
-        if (eleve == null) return $"Inconnu (#{idEleve})";
-        return $"{eleve.Prenom} {eleve.Nom} ({eleve.Matricule})";
+        var e = eleves.FirstOrDefault(x => x.IdEleve == idEleve);
+        return e == null ? $"#{idEleve}" : $"{e.Prenom} {e.Nom} ({e.Matricule})";
     }
 
     private string GetCoursLabel(int idCoursOffert)
     {
-        var cours = coursOfferts?.FirstOrDefault(c => c.IdCoursOffert == idCoursOffert);
-        if (cours == null) return $"Inconnu (#{idCoursOffert})";
-        return !string.IsNullOrEmpty(cours.NomCours)
-            ? $"{cours.NomCours} ({cours.ModeEnseignement})"
-            : $"Cours #{cours.IdCoursOffert} ({cours.ModeEnseignement})";
+        var c = coursOfferts.FirstOrDefault(x => x.IdCoursOffert == idCoursOffert);
+        if (c == null) return $"Cours #{idCoursOffert}";
+        return !string.IsNullOrEmpty(c.NomCours)
+            ? $"{c.NomCours} ({c.ModeEnseignement})"
+            : $"Cours #{idCoursOffert} ({c.ModeEnseignement})";
     }
 
     private async Task DeleteInscription(int id)
@@ -175,7 +188,8 @@ else
         if (res.IsSuccessStatusCode)
         {
             message = "✅ Inscription supprimée.";
-            await ChargerDonnees();
+            inscriptions = inscriptions.Where(i => i.IdInscription != id).ToList();
+            AppliquerFiltres();
         }
         else
         {

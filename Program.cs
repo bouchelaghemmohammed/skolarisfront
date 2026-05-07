@@ -7,16 +7,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Options JSON partagées
+// Options JSON partagées (case-insensitive + enums en string)
 var jsonOptions = new JsonSerializerOptions
 {
     PropertyNameCaseInsensitive = true
 };
-
 jsonOptions.Converters.Add(new JsonStringEnumConverter());
 builder.Services.AddSingleton(jsonOptions);
 
-// HttpClient vers ton backend
 builder.Services.AddScoped(sp =>
     new HttpClient
     {
@@ -32,8 +30,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
 app.UseAntiforgery();
+app.MapStaticAssets();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

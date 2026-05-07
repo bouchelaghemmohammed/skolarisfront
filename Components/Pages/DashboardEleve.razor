@@ -17,30 +17,26 @@
 }
 
 <div class="sk-section-title">Mes accès rapides</div>
-
 <div class="sk-action-grid">
     <div class="sk-action-card" @onclick="GoDossier">
         <div class="sk-action-icon">📂</div>
         <div class="sk-action-title">Mon dossier académique</div>
         <div class="sk-action-desc">Voir mes inscriptions, cours et progression</div>
     </div>
-
     <div class="sk-action-card sk-action-card-soon">
         <div class="sk-action-icon">📅</div>
         <div class="sk-action-title">Mon horaire</div>
         <div class="sk-action-desc coming-soon">Bientôt disponible</div>
     </div>
-
     <div class="sk-action-card sk-action-card-soon">
         <div class="sk-action-icon">📝</div>
         <div class="sk-action-title">Mes notes</div>
         <div class="sk-action-desc coming-soon">Bientôt disponible</div>
     </div>
-
-    <div class="sk-action-card sk-action-card-soon">
+    <div class="sk-action-card" @onclick="GoAbsences">
         <div class="sk-action-icon">📋</div>
         <div class="sk-action-title">Mes absences</div>
-        <div class="sk-action-desc coming-soon">Bientôt disponible</div>
+        <div class="sk-action-desc">Consulter mon historique de présences</div>
     </div>
 </div>
 
@@ -51,29 +47,20 @@
     {
         if (firstRender)
         {
-            nomEleve = await JS.InvokeAsync<string>(
-                "localStorage.getItem",
-                "nom"
-            ) ?? "Élève";
-
+            nomEleve = await JS.InvokeAsync<string>("localStorage.getItem", "nom") ?? "Élève";
             StateHasChanged();
         }
     }
 
     private string GetInitiales(string nom)
     {
-        if (string.IsNullOrWhiteSpace(nom))
-            return "E";
-
+        if (string.IsNullOrWhiteSpace(nom)) return "E";
         var parts = nom.Trim().Split(' ');
-
         return parts.Length >= 2
             ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
             : nom[0].ToString().ToUpper();
     }
 
-    private void GoDossier()
-    {
-        Navigation.NavigateTo("/dossier-academique");
-    }
+    private void GoDossier() => Navigation.NavigateTo("/dossier-academique");
+    private void GoAbsences() => Navigation.NavigateTo("/eleve/absences");
 }
