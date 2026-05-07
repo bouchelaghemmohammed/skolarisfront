@@ -1,0 +1,230 @@
+@page "/enseignant/statistiques"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<h2 class="sk-section-title">Statistiques de classe (NOT-06)</h2>
+
+<p class="sk-welcome-sub" style="margin-top:-8px;">
+    Sélectionnez un cours offert pour voir la moyenne, médiane, distribution et le détail des notes finales par élève.
+</p>
+
+<div class="sk-card" style="margin-top:16px;">
+    <div class="sk-form-row">
+        <div>
+            <label>ID Cours offert</label>
+            <input type="number" class="form-control" @bind="idCoursOffert" />
+        </div>
+        <div style="align-self:flex-end;">
+            <button class="btn btn-primary" @onclick="Charger" disabled="@chargement">
+                @(chargement ? "Chargement..." : "Charger")
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert alert-danger mt-3">@message</div>
+}
+
+@if (stats != null)
+{
+    <div class="sk-section-title" style="margin-top:24px;">
+        @stats.CoursCode — @stats.CoursNom · Groupe @stats.GroupeNom · Session @stats.SessionLibelle
+    </div>
+
+    <div class="sk-stats-row">
+        <div class="sk-stat-card sk-stat-card-blue">
+            <div class="sk-stat-icon">👥</div>
+            <div class="sk-stat-value">@stats.NombreInscrits</div>
+            <div class="sk-stat-label">Élèves inscrits</div>
+        </div>
+        <div class="sk-stat-card">
+            <div class="sk-stat-icon">📝</div>
+            <div class="sk-stat-value">@stats.NombreNotes</div>
+            <div class="sk-stat-label">Élèves avec note</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-green">
+            <div class="sk-stat-icon">📊</div>
+            <div class="sk-stat-value">@FormatStat(stats.Moyenne)</div>
+            <div class="sk-stat-label">Moyenne</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-accent">
+            <div class="sk-stat-icon">🎯</div>
+            <div class="sk-stat-value">@FormatStat(stats.Mediane)</div>
+            <div class="sk-stat-label">Médiane</div>
+        </div>
+    </div>
+
+    <div class="sk-stats-row" style="margin-top:8px;">
+        <div class="sk-stat-card">
+            <div class="sk-stat-icon">⬇️</div>
+            <div class="sk-stat-value">@FormatStat(stats.Minimum)</div>
+            <div class="sk-stat-label">Minimum</div>
+        </div>
+        <div class="sk-stat-card">
+            <div class="sk-stat-icon">⬆️</div>
+            <div class="sk-stat-value">@FormatStat(stats.Maximum)</div>
+            <div class="sk-stat-label">Maximum</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-warn">
+            <div class="sk-stat-icon">📐</div>
+            <div class="sk-stat-value">@FormatStat(stats.EcartType)</div>
+            <div class="sk-stat-label">Écart-type</div>
+        </div>
+    </div>
+
+    @if (stats.NombreNotes > 0)
+    {
+        <div class="sk-section-title" style="margin-top:32px;">Distribution par mention</div>
+        <div class="sk-card">
+            @{
+                var max = Math.Max(1, new[] { stats.Distribution.Excellent, stats.Distribution.TresBien, stats.Distribution.Bien, stats.Distribution.Passable, stats.Distribution.Echec }.Max());
+            }
+            @foreach (var bucket in GetBuckets(stats.Distribution))
+            {
+                <div style="display:flex; align-items:center; margin:8px 0;">
+                    <div style="width:120px; font-weight:bold; color:@bucket.Color;">@bucket.Label</div>
+                    <div style="flex:1; background:#f0f0f0; border-radius:4px; height:24px; position:relative; overflow:hidden;">
+                        <div style="background:@bucket.Color; height:100%; width:@(bucket.Count * 100 / max)%; min-width: @(bucket.Count > 0 ? "8px" : "0");"></div>
+                    </div>
+                    <div style="width:60px; text-align:right; font-weight:bold;">@bucket.Count</div>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="sk-section-title" style="margin-top:32px;">Détail des élèves</div>
+    @if (!stats.Eleves.Any())
+    {
+        <div class="sk-empty">Aucun élève inscrit dans ce cours offert.</div>
+    }
+    else
+    {
+        <div class="sk-table-wrapper">
+            <table class="sk-table">
+                <thead>
+                    <tr>
+                        <th>Rang</th>
+                        <th>Matricule</th>
+                        <th>Élève</th>
+                        <th>Note finale</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var rang = 0; }
+                    @foreach (var e in stats.Eleves)
+                    {
+                        rang++;
+                        <tr>
+                            <td>@(e.NoteFinale.HasValue ? rang.ToString() : "—")</td>
+                            <td><code class="sk-code">@e.Matricule</code></td>
+                            <td><strong>@e.NomComplet</strong></td>
+                            <td>
+                                @if (e.NoteFinale.HasValue)
+                                {
+                                    <span class="sk-note @GetNoteClass(e.NoteFinale.Value)">@e.NoteFinale.Value.ToString("F2")</span>
+                                }
+                                else
+                                {
+                                    <span style="color:#999;">aucune note</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-enseignant")'>
+        ← Retour au tableau de bord
+    </button>
+</div>
+
+@code {
+    private int idCoursOffert;
+    private bool chargement;
+    private string message = "";
+    private StatsDto? stats;
+
+    private async Task Charger()
+    {
+        if (idCoursOffert <= 0) { message = "Veuillez fournir un ID cours offert valide."; return; }
+        chargement = true; message = ""; stats = null;
+        try
+        {
+            var res = await Http.GetAsync($"api/notes/cours/{idCoursOffert}/statistiques");
+            if (res.IsSuccessStatusCode)
+            {
+                stats = await res.Content.ReadFromJsonAsync<StatsDto>();
+            }
+            else
+            {
+                message = await res.Content.ReadAsStringAsync();
+            }
+        }
+        catch (Exception ex) { message = ex.Message; }
+        chargement = false;
+    }
+
+    private string FormatStat(decimal? v) => v.HasValue ? v.Value.ToString("F2") : "—";
+
+    private string GetNoteClass(decimal v)
+    {
+        if (v >= 90) return "note-excellent";
+        if (v >= 75) return "note-bien";
+        if (v >= 60) return "note-moyen";
+        return "note-autre";
+    }
+
+    private List<Bucket> GetBuckets(DistributionDto d) => new()
+    {
+        new Bucket("Excellent (≥90)", d.Excellent, "#1976d2"),
+        new Bucket("Très bien (80-89)", d.TresBien, "#43a047"),
+        new Bucket("Bien (70-79)", d.Bien, "#7cb342"),
+        new Bucket("Passable (60-69)", d.Passable, "#fb8c00"),
+        new Bucket("Échec (<60)", d.Echec, "#e53935"),
+    };
+
+    public record Bucket(string Label, int Count, string Color);
+
+    public class StatsDto
+    {
+        public int IdCoursOffert { get; set; }
+        public string CoursNom { get; set; } = "";
+        public string CoursCode { get; set; } = "";
+        public string GroupeNom { get; set; } = "";
+        public string SessionLibelle { get; set; } = "";
+        public int NombreInscrits { get; set; }
+        public int NombreNotes { get; set; }
+        public decimal? Moyenne { get; set; }
+        public decimal? Mediane { get; set; }
+        public decimal? Minimum { get; set; }
+        public decimal? Maximum { get; set; }
+        public decimal? EcartType { get; set; }
+        public DistributionDto Distribution { get; set; } = new();
+        public List<EleveDto> Eleves { get; set; } = new();
+    }
+
+    public class DistributionDto
+    {
+        public int Excellent { get; set; }
+        public int TresBien { get; set; }
+        public int Bien { get; set; }
+        public int Passable { get; set; }
+        public int Echec { get; set; }
+    }
+
+    public class EleveDto
+    {
+        public int IdEleve { get; set; }
+        public string NomComplet { get; set; } = "";
+        public string Matricule { get; set; } = "";
+        public decimal? NoteFinale { get; set; }
+    }
+}

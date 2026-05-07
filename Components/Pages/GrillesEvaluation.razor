@@ -1,0 +1,284 @@
+@page "/admin/grilles"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<h2 class="sk-section-title">Grilles d'évaluation (NOT-01)</h2>
+
+<p class="sk-welcome-sub" style="margin-top:-8px;">
+    Définir une grille d'évaluation pour un cours offert : catégories (Examens, Devoirs, etc.) avec pondérations.
+    Les notes peuvent ensuite être assignées à une catégorie. Le calcul de la note finale utilise alors la moyenne pondérée des catégories.
+</p>
+
+<div class="sk-card" style="margin-top:16px;">
+    <div class="sk-form-row">
+        <div>
+            <label>ID Cours offert</label>
+            <input type="number" class="form-control" @bind="idCoursOffert" />
+        </div>
+        <div style="align-self:flex-end;">
+            <button class="btn btn-primary" @onclick="Charger">Charger / Vérifier</button>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert @(success ? "alert-success" : "alert-danger") mt-3">@message</div>
+}
+
+@if (idCoursOffertCharge != 0)
+{
+    @if (grille == null)
+    {
+        <div class="sk-section-title" style="margin-top:24px;">Aucune grille n'existe pour ce cours offert</div>
+        <div class="sk-card">
+            <div class="sk-form-row">
+                <div style="flex:1;">
+                    <label>Description (optionnelle)</label>
+                    <input class="form-control" @bind="newDescription" placeholder="Ex. Grille standard 2026" />
+                </div>
+                <div style="align-self:flex-end;">
+                    <button class="btn btn-success" @onclick="CreerGrille">➕ Créer la grille</button>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="sk-section-title" style="margin-top:24px;">
+            Grille #@grille.IdGrille — @(string.IsNullOrEmpty(grille.Description) ? "(sans description)" : grille.Description)
+        </div>
+
+        <div class="sk-stats-row">
+            <div class="sk-stat-card sk-stat-card-blue">
+                <div class="sk-stat-icon">📋</div>
+                <div class="sk-stat-value">@grille.Categories.Count</div>
+                <div class="sk-stat-label">Catégories</div>
+            </div>
+            <div class="sk-stat-card @(GetTotalClass())">
+                <div class="sk-stat-icon">⚖️</div>
+                <div class="sk-stat-value">@TotalPonderation().ToString("F2")%</div>
+                <div class="sk-stat-label">Total des pondérations</div>
+            </div>
+        </div>
+
+        @if (TotalPonderation() != 100 && grille.Categories.Count > 0)
+        {
+            <div class="alert alert-warning mt-2">
+                ⚠️ Le total des pondérations est @TotalPonderation().ToString("F2")% (devrait être 100%).
+            </div>
+        }
+
+        @if (grille.Categories.Any())
+        {
+            <div class="sk-table-wrapper">
+                <table class="sk-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nom</th>
+                            <th>Pondération (%)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in grille.Categories)
+                        {
+                            <tr>
+                                <td>@c.IdCategorie</td>
+                                @if (editingCatId == c.IdCategorie)
+                                {
+                                    <td><input class="form-control" @bind="editNom" /></td>
+                                    <td><input type="number" step="0.01" class="form-control" @bind="editPond" /></td>
+                                    <td>
+                                        <button class="btn btn-success btn-sm" @onclick="() => SaveCategorie(c.IdCategorie)">💾</button>
+                                        <button class="btn btn-secondary btn-sm" @onclick="CancelEdit">✖</button>
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td>@c.Nom</td>
+                                    <td>@c.Ponderation.ToString("F2")%</td>
+                                    <td>
+                                        <button class="btn btn-primary btn-sm" @onclick="() => StartEdit(c)">✏️</button>
+                                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteCategorie(c.IdCategorie)">🗑️</button>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="sk-empty">Aucune catégorie. Ajoutez-en ci-dessous.</div>
+        }
+
+        <div class="sk-section-title" style="margin-top:24px;">Ajouter une catégorie</div>
+        <div class="sk-card">
+            <div class="sk-form-row">
+                <div style="flex:2;">
+                    <label>Nom (ex. Examens, Devoirs, Participation)</label>
+                    <input class="form-control" @bind="newCatNom" />
+                </div>
+                <div style="flex:1;">
+                    <label>Pondération (%)</label>
+                    <input type="number" step="0.01" class="form-control" @bind="newCatPond" />
+                </div>
+                <div style="align-self:flex-end;">
+                    <button class="btn btn-success" @onclick="AjouterCategorie">➕ Ajouter</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <button class="btn btn-danger" @onclick="SupprimerGrille">🗑️ Supprimer toute la grille</button>
+        </div>
+    }
+}
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>
+        ← Retour au tableau de bord
+    </button>
+</div>
+
+@code {
+    private int idCoursOffert;
+    private int idCoursOffertCharge;
+    private GrilleDto? grille;
+    private string newDescription = "";
+    private string newCatNom = "";
+    private decimal newCatPond;
+
+    private int? editingCatId;
+    private string editNom = "";
+    private decimal editPond;
+
+    private bool success = false;
+    private string message = "";
+
+    private async Task Charger()
+    {
+        if (idCoursOffert <= 0) { Fail("Veuillez fournir un ID cours offert valide."); return; }
+        message = "";
+        idCoursOffertCharge = idCoursOffert;
+        try
+        {
+            var res = await Http.GetAsync($"api/grilles/cours/{idCoursOffert}");
+            if (res.IsSuccessStatusCode)
+            {
+                grille = await res.Content.ReadFromJsonAsync<GrilleDto>();
+            }
+            else
+            {
+                grille = null;
+            }
+        }
+        catch { grille = null; }
+    }
+
+    private async Task CreerGrille()
+    {
+        var payload = new { idCoursOffert = idCoursOffertCharge, description = string.IsNullOrWhiteSpace(newDescription) ? null : newDescription };
+        var res = await Http.PostAsJsonAsync("api/grilles", payload);
+        if (res.IsSuccessStatusCode)
+        {
+            grille = await res.Content.ReadFromJsonAsync<GrilleDto>();
+            grille!.Categories ??= new();
+            Ok("Grille créée.");
+            newDescription = "";
+        }
+        else { Fail(await res.Content.ReadAsStringAsync()); }
+    }
+
+    private async Task SupprimerGrille()
+    {
+        if (grille == null) return;
+        var res = await Http.DeleteAsync($"api/grilles/{grille.IdGrille}");
+        if (res.IsSuccessStatusCode)
+        {
+            grille = null;
+            Ok("Grille supprimée.");
+        }
+        else { Fail(await res.Content.ReadAsStringAsync()); }
+    }
+
+    private async Task AjouterCategorie()
+    {
+        if (grille == null) return;
+        var payload = new { nom = newCatNom, ponderation = newCatPond };
+        var res = await Http.PostAsJsonAsync($"api/grilles/{grille.IdGrille}/categories", payload);
+        if (res.IsSuccessStatusCode)
+        {
+            await Charger();
+            Ok("Catégorie ajoutée.");
+            newCatNom = ""; newCatPond = 0;
+        }
+        else { Fail(await res.Content.ReadAsStringAsync()); }
+    }
+
+    private void StartEdit(CategorieDto c)
+    {
+        editingCatId = c.IdCategorie;
+        editNom = c.Nom;
+        editPond = c.Ponderation;
+    }
+
+    private void CancelEdit() => editingCatId = null;
+
+    private async Task SaveCategorie(int idCategorie)
+    {
+        var payload = new { nom = editNom, ponderation = editPond };
+        var res = await Http.PutAsJsonAsync($"api/grilles/categories/{idCategorie}", payload);
+        if (res.IsSuccessStatusCode)
+        {
+            editingCatId = null;
+            await Charger();
+            Ok("Catégorie mise à jour.");
+        }
+        else { Fail(await res.Content.ReadAsStringAsync()); }
+    }
+
+    private async Task DeleteCategorie(int idCategorie)
+    {
+        var res = await Http.DeleteAsync($"api/grilles/categories/{idCategorie}");
+        if (res.IsSuccessStatusCode)
+        {
+            await Charger();
+            Ok("Catégorie supprimée.");
+        }
+        else { Fail(await res.Content.ReadAsStringAsync()); }
+    }
+
+    private decimal TotalPonderation() => grille?.Categories.Sum(c => c.Ponderation) ?? 0m;
+
+    private string GetTotalClass()
+    {
+        var t = TotalPonderation();
+        if (t == 100) return "sk-stat-card-green";
+        if (t == 0) return "";
+        return "sk-stat-card-warn";
+    }
+
+    private void Ok(string msg) { success = true; message = msg; }
+    private void Fail(string msg) { success = false; message = $"Erreur : {msg}"; }
+
+    public class GrilleDto
+    {
+        public int IdGrille { get; set; }
+        public int IdCoursOffert { get; set; }
+        public string? Description { get; set; }
+        public List<CategorieDto> Categories { get; set; } = new();
+    }
+
+    public class CategorieDto
+    {
+        public int IdCategorie { get; set; }
+        public string Nom { get; set; } = "";
+        public decimal Ponderation { get; set; }
+    }
+}
