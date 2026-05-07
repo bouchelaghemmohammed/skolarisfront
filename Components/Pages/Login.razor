@@ -34,9 +34,7 @@
             <div class="form-group">
                 <label>Courriel</label>
 
-                <InputText class="form-control"
-                           @bind-Value="loginModel.Email"
-                           placeholder="admin@gmail.com"
+                <InputText class="form-control" @bind-Value="loginModel.Email" placeholder="admin@gmail.com"
                            disabled="@isLoading" />
 
                 <ValidationMessage For="@(() => loginModel.Email)" />
@@ -45,18 +43,13 @@
             <div class="form-group">
                 <label>Mot de passe</label>
 
-                <InputText type="password"
-                           class="form-control"
-                           @bind-Value="loginModel.Password"
-                           placeholder="123456"
+                <InputText type="password" class="form-control" @bind-Value="loginModel.Password" placeholder="123456"
                            disabled="@isLoading" />
 
                 <ValidationMessage For="@(() => loginModel.Password)" />
             </div>
 
-            <button type="submit"
-                    class="btn-login"
-                    disabled="@isLoading">
+            <button type="submit" class="btn-login" disabled="@isLoading">
 
                 @if (isLoading)
                 {
@@ -70,6 +63,12 @@
             </button>
 
         </EditForm>
+
+        <div style="text-align:center; margin-top:14px;">
+            <a href="/forgot-password" class="forgot-link" style="font-size:13px;">
+                Mot de passe oublié ?
+            </a>
+        </div>
 
     </div>
 </div>

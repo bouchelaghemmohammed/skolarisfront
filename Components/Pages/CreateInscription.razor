@@ -3,47 +3,57 @@
 @inject NavigationManager Navigation
 @using System.Net.Http.Json
 
-<h3>Inscrire un élève à un cours offert</h3>
-
-@if (!string.IsNullOrEmpty(message))
-{
-    <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
-}
-
-<div>
-    <label>Élève</label>
-    <select class="form-control" @bind="inscription.IdEleve">
-        <option value="0">-- Sélectionner --</option>
-        @if (eleves != null)
-        {
-            @foreach (var e in eleves)
-            {
-                <option value="@e.IdEleve">@e.Prenom @e.Nom (@e.Matricule)</option>
-            }
-        }
-    </select>
+<div class="sk-page-header">
+    <h2 class="sk-page-title">Nouvelle inscription</h2>
 </div>
-<br />
 
-<div>
-    <label>Cours offert</label>
-    <select class="form-control" @bind="inscription.IdCoursOffert">
-        <option value="0">-- Sélectionner --</option>
-        @if (coursOfferts != null)
-        {
-            @foreach (var c in coursOfferts)
+<div class="sk-form-card">
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="sk-alert @(isError ? "sk-alert-danger" : "sk-alert-success")">@message</div>
+    }
+
+    <div class="sk-form-group">
+        <label>Élève *</label>
+        <select class="sk-input" @bind="inscription.IdEleve">
+            <option value="0">— Sélectionner un élève —</option>
+            @if (eleves != null)
             {
-                <option value="@c.IdCoursOffert">
-                    @(string.IsNullOrEmpty(c.NomCours) ? $"Cours #{c.IdCoursOffert}" : c.NomCours)
-                </option>
+                @foreach (var e in eleves)
+                {
+                    <option value="@e.IdEleve">@e.Prenom @e.Nom (@e.Matricule)</option>
+                }
             }
-        }
-    </select>
-</div>
-<br />
+        </select>
+    </div>
 
-<button class="btn btn-primary" @onclick="Create">Inscrire</button>
-<button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/admin/inscriptions")'>Retour</button>
+    <div class="sk-form-group">
+        <label>Cours offert *</label>
+        <select class="sk-input" @bind="inscription.IdCoursOffert">
+            <option value="0">— Sélectionner un cours —</option>
+            @if (coursOfferts != null)
+            {
+                @foreach (var c in coursOfferts)
+                {
+                    <option value="@c.IdCoursOffert">
+                        @(string.IsNullOrEmpty(c.NomCours) ? $"Cours #{c.IdCoursOffert}" : c.NomCours)
+                    </option>
+                }
+            }
+        </select>
+    </div>
+
+    <div class="sk-form-actions">
+        <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/admin/inscriptions")'>
+            ← Annuler
+        </button>
+        <button class="sk-btn sk-btn-primary" @onclick="Create" disabled="@isLoading">
+            @(isLoading ? "Inscription en cours..." : "Inscrire l'élève")
+        </button>
+    </div>
+
+</div>
 
 @code {
     private InscriptionCreate inscription = new();
@@ -51,6 +61,7 @@
     private List<CoursOffertDto>? coursOfferts;
     private string message = "";
     private bool isError = false;
+    private bool isLoading = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,11 +81,14 @@
             return;
         }
 
+        isLoading = true;
         var res = await Http.PostAsJsonAsync("api/inscriptions", inscription);
+        isLoading = false;
+
         if (res.IsSuccessStatusCode)
         {
-            message = "✅ Inscription créée avec succès.";
-            await Task.Delay(1000);
+            message = "Inscription créée avec succès.";
+            await Task.Delay(900);
             Navigation.NavigateTo("/admin/inscriptions?created=true");
         }
         else
