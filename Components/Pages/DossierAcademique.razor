@@ -128,7 +128,9 @@ else
             var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "userId");
             if (int.TryParse(userIdStr, out var userId))
             {
-                dossier = await Http.GetFromJsonAsync<DossierDto>($"api/dossier/{userId}");
+                var res = await Http.GetAsync($"api/dossier/{userId}");
+                if (res.IsSuccessStatusCode)
+                    dossier = await res.Content.ReadFromJsonAsync<DossierDto>();
             }
 
             loaded = true;

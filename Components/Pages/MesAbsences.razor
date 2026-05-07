@@ -1,82 +1,231 @@
-﻿@page "/eleve/absences"
+@page "/eleve/absences"
+@rendermode InteractiveServer
 @inject HttpClient Http
+@inject NavigationManager Navigation
 @inject IJSRuntime JS
 @using System.Net.Http.Json
 
-<h3>Mes absences</h3>
-
-@if (absences == null)
+@if (!loaded)
 {
-    <p>Chargement...</p>
-}
-else if (!absences.Any())
-{
-    <p>Aucune absence trouvée</p>
+    <div class="sk-loading">Chargement des absences...</div>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Type</th>
-                <th>Statut</th>
-                <th>Date</th>
-                <th>Cours</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var a in absences)
-            {
-                <tr>
-                    <td>@a.Type</td>
-                    <td>@a.Statut</td>
-                    <td>@a.DateAbsence.ToString("yyyy-MM-dd")</td>
-                    <td>@GetCoursLabel(a.IdCoursOffert)</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="sk-dossier-header">
+        <div class="sk-dossier-avatar">📋</div>
+        <div>
+            <h2 class="sk-dossier-name">Mes absences</h2>
+            <p class="sk-dossier-sub">Historique de présences — Élève</p>
+        </div>
+    </div>
+
+    <div class="sk-stats-row">
+        <div class="sk-stat-card">
+            <div class="sk-stat-icon">📋</div>
+            <div class="sk-stat-value">@absences.Count</div>
+            <div class="sk-stat-label">Total</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-warn">
+            <div class="sk-stat-icon">⏳</div>
+            <div class="sk-stat-value">@absences.Count(a => a.Statut == "EnAttente")</div>
+            <div class="sk-stat-label">En attente</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-green">
+            <div class="sk-stat-icon">✅</div>
+            <div class="sk-stat-value">@absences.Count(a => a.Statut == "Approuvee")</div>
+            <div class="sk-stat-label">Approuvées</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-accent">
+            <div class="sk-stat-icon">❌</div>
+            <div class="sk-stat-value">@absences.Count(a => a.Statut == "Refusee")</div>
+            <div class="sk-stat-label">Refusées</div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="sk-alert @(message.StartsWith("❌") ? "sk-alert-danger" : "sk-alert-success")">@message</div>
+    }
+
+    @if (!absences.Any())
+    {
+        <div class="sk-empty">Aucune absence enregistrée pour le moment.</div>
+    }
+    else
+    {
+        <div class="sk-section-title">Historique</div>
+        <div class="sk-table-wrapper">
+            <table class="sk-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Ma justification</th>
+                        <th>Décision</th>
+                        <th>Cours</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in absences.OrderByDescending(a => a.DateAbsence))
+                    {
+                        <tr>
+                            <td>@a.DateAbsence.ToString("yyyy-MM-dd")</td>
+                            <td><span class="sk-badge @GetTypeClass(a.Type)">@a.Type</span></td>
+                            <td>@(string.IsNullOrEmpty(a.Justification?.Description) ? "—" : a.Justification.Description)</td>
+                            <td><span class="sk-badge @GetStatutClass(a.Statut)">@GetStatutLabel(a.Statut)</span></td>
+                            <td>@GetCoursLabel(a.IdCoursOffert)</td>
+                            <td class="sk-actions">
+                                <button class="sk-btn sk-btn-sm sk-btn-outline"
+                                        @onclick="() => OuvrirFormJustif(a.IdAbsence)">
+                                    @(a.Justification?.Description != null ? "Modifier" : "Justifier")
+                                </button>
+                            </td>
+                        </tr>
+
+                        @if (absenceEnEdition == a.IdAbsence)
+                        {
+                            <tr>
+                                <td colspan="7" style="background:var(--sk-surface-2, #1e2a3a); padding:1rem;">
+                                    <div style="max-width:500px;">
+                                        <label class="form-label">Mon explication</label>
+                                        <textarea class="form-control mb-2" rows="3"
+                                                  placeholder="Expliquez la raison de votre absence..."
+                                                  @bind="texteJustif"
+                                                  @bind:event="oninput"></textarea>
+                                        <div class="d-flex gap-2">
+                                            <button class="sk-btn sk-btn-sm sk-btn-primary" @onclick="() => SoumettreJustif(a.IdAbsence)">Soumettre</button>
+                                            <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="FermerFormJustif">Annuler</button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 }
 
-@code {
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-eleve")'>← Retour au tableau de bord</button>
+</div>
 
-    private List<Absence>? absences;
-    private List<CoursOffertDto>? coursOfferts;
+@code {
+    private List<Absence> absences = new();
+    private List<CoursOffertDto> coursOfferts = new();
+    private bool loaded = false;
+    private string message = "";
+
+    private int? absenceEnEdition = null;
+    private string texteJustif = "";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            var userId = await JS.InvokeAsync<string>("localStorage.getItem", "userId");
-
-            coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert") ?? new();
-
-            if (!string.IsNullOrEmpty(userId))
-            {
-                // api/absences/user/{userId} fait le lien IdUtilisateur → IdEleve côté backend
-                var res = await Http.GetAsync($"api/absences/user/{userId}");
-                if (res.IsSuccessStatusCode)
-                    absences = await res.Content.ReadFromJsonAsync<List<Absence>>() ?? new();
-                else
-                    absences = new();
-            }
-            else
-            {
-                absences = new();
-            }
-
+            await Charger();
             StateHasChanged();
+        }
+    }
+
+    private async Task Charger()
+    {
+        var userId = await JS.InvokeAsync<string>("localStorage.getItem", "userId");
+        coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert") ?? new();
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var res = await Http.GetAsync($"api/absences/user/{userId}");
+            if (res.IsSuccessStatusCode)
+                absences = await res.Content.ReadFromJsonAsync<List<Absence>>() ?? new();
+        }
+
+        loaded = true;
+    }
+
+    private void OuvrirFormJustif(int idAbsence)
+    {
+        absenceEnEdition = idAbsence;
+        var absence = absences.FirstOrDefault(a => a.IdAbsence == idAbsence);
+        texteJustif = absence?.Justification?.Description ?? "";
+    }
+
+    private void FermerFormJustif()
+    {
+        absenceEnEdition = null;
+        texteJustif = "";
+    }
+
+    private async Task SoumettreJustif(int idAbsence)
+    {
+        if (string.IsNullOrWhiteSpace(texteJustif)) return;
+
+        var res = await Http.PostAsJsonAsync(
+            $"api/absences/{idAbsence}/explication",
+            new { Texte = texteJustif }
+        );
+
+        if (res.IsSuccessStatusCode)
+        {
+            message = "✅ Justification soumise avec succès.";
+            FermerFormJustif();
+            await Charger();
+            StateHasChanged();
+        }
+        else
+        {
+            var erreur = await res.Content.ReadAsStringAsync();
+            message = $"❌ Erreur {(int)res.StatusCode} : {erreur}";
         }
     }
 
     private string GetCoursLabel(int idCoursOffert)
     {
-        var cours = coursOfferts?.FirstOrDefault(c => c.IdCoursOffert == idCoursOffert);
+        var cours = coursOfferts.FirstOrDefault(c => c.IdCoursOffert == idCoursOffert);
         if (cours == null) return $"Cours #{idCoursOffert}";
         return !string.IsNullOrEmpty(cours.NomCours)
             ? $"{cours.NomCours} ({cours.ModeEnseignement})"
             : $"Cours #{idCoursOffert} ({cours.ModeEnseignement})";
     }
+
+    private string GetStatutLabel(string statut) => statut switch
+    {
+        "EnAttente" => "En attente",
+        "Approuvee" => "Approuvée",
+        "Refusee"   => "Refusée",
+        _           => statut
+    };
+
+    private string GetJustifLabel(string? statut) => statut switch
+    {
+        "Justifiee"    => "Justifiée",
+        "NonJustifiee" => "Non justifiée",
+        _              => "—"
+    };
+
+    private string GetJustifClass(string? statut) => statut switch
+    {
+        "Justifiee"    => "sk-badge-active",
+        "NonJustifiee" => "sk-badge-inactive",
+        _              => "sk-badge-warn"
+    };
+
+    private string GetStatutClass(string statut) => statut switch
+    {
+        "EnAttente" => "sk-badge-warn",
+        "Approuvee" => "sk-badge-active",
+        "Refusee"   => "sk-badge-inactive",
+        _           => "sk-badge-info"
+    };
+
+    private string GetTypeClass(string type) => type switch
+    {
+        "Retard"  => "sk-badge-warn",
+        "Maladie" => "sk-badge-accent",
+        _         => "sk-badge-info"
+    };
 
     public class Absence
     {
@@ -86,6 +235,13 @@ else
         public DateTime DateAbsence { get; set; }
         public int IdEleve { get; set; }
         public int IdCoursOffert { get; set; }
+        public JustificationDto? Justification { get; set; }
+    }
+
+    public class JustificationDto
+    {
+        public string Statut { get; set; } = "";
+        public string? Description { get; set; }
     }
 
     public class CoursOffertDto

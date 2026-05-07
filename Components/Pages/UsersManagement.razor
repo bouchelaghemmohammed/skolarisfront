@@ -1,95 +1,132 @@
-﻿@page "/users-management"
+@page "/users-management"
 @rendermode InteractiveServer
-
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<h2>Gestion des utilisateurs</h2>
-
-@if (!string.IsNullOrEmpty(errorMessage))
+@if (!loaded)
 {
-    <div class="alert alert-danger">@errorMessage</div>
-}
-@if (!string.IsNullOrEmpty(successMessage))
-{
-    <div class="alert alert-success">@successMessage</div>
-}
-
-@if (users == null)
-{
-    <p>Chargement...</p>
+    <div class="sk-loading">Chargement des utilisateurs...</div>
 }
 else
 {
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>Nom</th>
-                <th>Courriel</th>
-                <th>Rôle</th>
-                <th>Changer rôle</th>
-                <th>Actif</th>
-                <th>Action</th>
-            </tr>
-        </thead>
+    <div class="sk-dossier-header">
+        <div class="sk-dossier-avatar">👥</div>
+        <div>
+            <h2 class="sk-dossier-name">Gestion des utilisateurs</h2>
+            <p class="sk-dossier-sub">Administration — Comptes, rôles et accès</p>
+        </div>
+    </div>
 
-        <tbody>
-            @foreach (var user in users)
-            {
+    <div class="sk-stats-row">
+        <div class="sk-stat-card">
+            <div class="sk-stat-icon">👥</div>
+            <div class="sk-stat-value">@users.Count</div>
+            <div class="sk-stat-label">Total utilisateurs</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-blue">
+            <div class="sk-stat-icon">📖</div>
+            <div class="sk-stat-value">@users.Count(u => u.Role == "ENSEIGNANT")</div>
+            <div class="sk-stat-label">Enseignants</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-accent">
+            <div class="sk-stat-icon">🎓</div>
+            <div class="sk-stat-value">@users.Count(u => u.Role == "ELEVE")</div>
+            <div class="sk-stat-label">Élèves</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-green">
+            <div class="sk-stat-icon">✅</div>
+            <div class="sk-stat-value">@users.Count(u => u.IsActive)</div>
+            <div class="sk-stat-label">Actifs</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-warn">
+            <div class="sk-stat-icon">🚫</div>
+            <div class="sk-stat-value">@users.Count(u => !u.IsActive)</div>
+            <div class="sk-stat-label">Désactivés</div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="sk-alert sk-alert-danger">@errorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="sk-alert sk-alert-success">@successMessage</div>
+    }
+
+    <div class="sk-section-title" style="margin-top:32px;">Liste des utilisateurs</div>
+
+    <div class="sk-table-wrapper">
+        <table class="sk-table">
+            <thead>
                 <tr>
-                    <td>@user.Nom</td>
-                    <td>@user.Email</td>
-                    <td>@user.Role</td>
-
-                    <td>
-                        <select class="form-select" @bind="user.Role">
-                            <option value="ADMIN">ADMIN</option>
-                            <option value="ENSEIGNANT">ENSEIGNANT</option>
-                            <option value="ELEVE">ELEVE</option>
-                        </select>
-
-                        <button class="btn btn-primary mt-2" @onclick="() => ChangeRole(user)">
-                            Modifier rôle
-                        </button>
-                    </td>
-
-                    <td>@(user.IsActive ? "Oui" : "Non")</td>
-
-                    <td>
-                        <button class="btn btn-secondary" @onclick="() => OpenEdit(user)">
-                            Modifier profil
-                        </button>
-                        <button class="btn btn-warning" @onclick="() => ToggleActive(user.Id)">
-                            @(user.IsActive ? "Désactiver" : "Activer")
-                        </button>
-                    </td>
+                    <th>Nom</th>
+                    <th>Courriel</th>
+                    <th>Rôle</th>
+                    <th>Changer rôle</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var user in users)
+                {
+                    <tr>
+                        <td><strong>@user.Nom</strong></td>
+                        <td>@user.Email</td>
+                        <td><span class="sk-badge @GetRoleClass(user.Role)">@user.Role</span></td>
+                        <td>
+                            <div class="d-flex gap-2 align-items-center">
+                                <select class="form-select form-select-sm" style="width:auto;" @bind="user.Role">
+                                    <option value="ADMIN">ADMIN</option>
+                                    <option value="ENSEIGNANT">ENSEIGNANT</option>
+                                    <option value="ELEVE">ELEVE</option>
+                                </select>
+                                <button class="sk-btn sk-btn-sm sk-btn-primary" @onclick="() => ChangeRole(user)">Appliquer</button>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="sk-badge @(user.IsActive ? "sk-badge-active" : "sk-badge-inactive")">
+                                @(user.IsActive ? "Actif" : "Inactif")
+                            </span>
+                        </td>
+                        <td class="sk-actions">
+                            <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="() => OpenEdit(user)">Modifier</button>
+                            <button class="sk-btn sk-btn-sm @(user.IsActive ? "sk-btn-warning" : "sk-btn-success")" @onclick="() => ToggleActive(user.Id)">
+                                @(user.IsActive ? "Désactiver" : "Activer")
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
     @if (editUser != null)
     {
-        <div class="card p-3 mt-3">
-            <h5>Modifier utilisateur</h5>
+        <div class="sk-section-title" style="margin-top:32px;">Modifier le profil</div>
+        <div class="card p-3" style="max-width:480px;">
             <input class="form-control mb-2" @bind="editUserPrenom" placeholder="Prénom" />
             <input class="form-control mb-2" @bind="editUserNom" placeholder="Nom" />
-            <input class="form-control mb-2" @bind="editUserEmail" placeholder="Email" />
-            <button class="btn btn-primary" @onclick="SaveEdit">Enregistrer</button>
-            <button class="btn btn-secondary" @onclick="CancelEdit">Annuler</button>
+            <input class="form-control mb-2" @bind="editUserEmail" placeholder="Courriel" />
+            <div class="d-flex gap-2">
+                <button class="sk-btn sk-btn-primary" @onclick="SaveEdit">Enregistrer</button>
+                <button class="sk-btn sk-btn-outline" @onclick="CancelEdit">Annuler</button>
+            </div>
         </div>
     }
 }
 
-<button class="btn btn-secondary" @onclick="BackDashboard">
-    Retour dashboard
-</button>
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>← Retour au tableau de bord</button>
+</div>
 
 @code {
-    private List<UserItem>? users;
+    private List<UserItem> users = new();
     private string errorMessage = "";
     private string successMessage = "";
+    private bool loaded = false;
 
     private UserItem? editUser;
     private string editUserPrenom = "";
@@ -101,55 +138,36 @@ else
         if (firstRender)
         {
             await LoadUsers();
+            loaded = true;
             StateHasChanged();
         }
     }
 
     private async Task LoadUsers()
     {
-        users = await Http.GetFromJsonAsync<List<UserItem>>("api/users");
+        users = await Http.GetFromJsonAsync<List<UserItem>>("api/users") ?? new();
     }
 
     private async Task ToggleActive(int id)
     {
         errorMessage = "";
         successMessage = "";
-
         var response = await Http.PostAsync($"api/users/{id}/toggle-active", null);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            errorMessage = "Impossible de modifier ce compte.";
-            return;
-        }
-
-        successMessage = "✅ Statut utilisateur mis à jour.";
+        if (!response.IsSuccessStatusCode) { errorMessage = "Impossible de modifier ce compte."; return; }
+        successMessage = "✅ Statut mis à jour.";
         await LoadUsers();
+        StateHasChanged();
     }
 
     private async Task ChangeRole(UserItem user)
     {
         errorMessage = "";
         successMessage = "";
-
-        var request = new ChangeRoleRequest
-        {
-            Role = user.Role
-        };
-
-        var response = await Http.PostAsJsonAsync(
-            $"api/users/{user.Id}/change-role",
-            request
-        );
-
-        if (!response.IsSuccessStatusCode)
-        {
-            errorMessage = "Impossible de modifier le rôle.";
-            return;
-        }
-
+        var response = await Http.PostAsJsonAsync($"api/users/{user.Id}/change-role", new ChangeRoleRequest { Role = user.Role });
+        if (!response.IsSuccessStatusCode) { errorMessage = "Impossible de modifier le rôle."; return; }
         successMessage = "✅ Rôle mis à jour.";
         await LoadUsers();
+        StateHasChanged();
     }
 
     private void OpenEdit(UserItem u)
@@ -157,7 +175,6 @@ else
         errorMessage = "";
         successMessage = "";
         editUser = u;
-        // u.Nom contient "Prenom Nom" (concaténé par GetAllUsers), on sépare au premier espace
         var parts = u.Nom.Trim().Split(' ', 2);
         editUserPrenom = parts[0];
         editUserNom = parts.Length > 1 ? parts[1] : "";
@@ -169,20 +186,15 @@ else
     private async Task SaveEdit()
     {
         if (editUser == null) return;
-
         errorMessage = "";
         successMessage = "";
-
-        var res = await Http.PutAsJsonAsync(
-            $"api/profile/{editUser.Id}",
-            new { Prenom = editUserPrenom, Nom = editUserNom, Email = editUserEmail }
-        );
-
+        var res = await Http.PutAsJsonAsync($"api/profile/{editUser.Id}", new { Prenom = editUserPrenom, Nom = editUserNom, Email = editUserEmail });
         if (res.IsSuccessStatusCode)
         {
             successMessage = "✅ Profil mis à jour.";
             editUser = null;
             await LoadUsers();
+            StateHasChanged();
         }
         else
         {
@@ -190,10 +202,13 @@ else
         }
     }
 
-    private void BackDashboard()
+    private string GetRoleClass(string role) => role switch
     {
-        Navigation.NavigateTo("/dashboard-admin");
-    }
+        "ADMIN"      => "sk-badge-danger",
+        "ENSEIGNANT" => "sk-badge-info",
+        "ELEVE"      => "sk-badge-accent",
+        _            => "sk-badge-info"
+    };
 
     public class UserItem
     {

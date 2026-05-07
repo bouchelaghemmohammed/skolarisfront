@@ -1,11 +1,65 @@
-﻿@page "/dashboard-enseignant"
+@page "/dashboard-enseignant"
+@rendermode InteractiveServer
 
-<h2>Dashboard Enseignant</h2>
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-<ul>
-    <li>Voir mon horaire</li>
-    <li>Voir mes cours</li>
-    <li>Saisir les notes</li>
-    <li>Consulter les absences</li>
-</ul>
+@if (nomEnseignant != null)
+{
+    <div class="sk-welcome">
+        <div class="sk-welcome-avatar">@GetInitiales(nomEnseignant)</div>
+        <div>
+            <h2 class="sk-welcome-title">Bonjour, @nomEnseignant !</h2>
+            <p class="sk-welcome-sub">Tableau de bord enseignant</p>
+        </div>
+    </div>
+}
 
+<div class="sk-section-title">Mes accès rapides</div>
+<div class="sk-action-grid">
+    <div class="sk-action-card" @onclick="GoAbsences">
+        <div class="sk-action-icon">📋</div>
+        <div class="sk-action-title">Absences</div>
+        <div class="sk-action-desc">Saisir et gérer les absences de mes cours</div>
+    </div>
+    <div class="sk-action-card sk-action-card-soon">
+        <div class="sk-action-icon">📅</div>
+        <div class="sk-action-title">Mon horaire</div>
+        <div class="sk-action-desc coming-soon">Bientôt disponible</div>
+    </div>
+    <div class="sk-action-card sk-action-card-soon">
+        <div class="sk-action-icon">📝</div>
+        <div class="sk-action-title">Notes</div>
+        <div class="sk-action-desc coming-soon">Bientôt disponible</div>
+    </div>
+    <div class="sk-action-card sk-action-card-soon">
+        <div class="sk-action-icon">💬</div>
+        <div class="sk-action-title">Messagerie</div>
+        <div class="sk-action-desc coming-soon">Bientôt disponible</div>
+    </div>
+</div>
+
+@code {
+    private string? nomEnseignant;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            nomEnseignant = await JS.InvokeAsync<string>("localStorage.getItem", "nom") ?? "Enseignant";
+            StateHasChanged();
+        }
+    }
+
+    private string GetInitiales(string nom)
+    {
+        if (string.IsNullOrWhiteSpace(nom)) return "E";
+        var parts = nom.Trim().Split(' ');
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+            : nom[0].ToString().ToUpper();
+    }
+
+    private void GoAbsences() => Navigation.NavigateTo("/enseignant/absences");
+}
