@@ -32,15 +32,6 @@
 }
 else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
 {
-    @if (grille != null)
-    {
-        <div class="alert alert-info mt-3">
-            📋 <strong>Grille d'évaluation active :</strong> @(string.IsNullOrEmpty(grille.Description) ? "(sans description)" : grille.Description)
-            — @grille.Categories.Count catégorie(s).
-            La note finale sera calculée par la moyenne pondérée des catégories.
-        </div>
-    }
-
     <div class="sk-section-title" style="margin-top:32px;">
         Notes existantes — Élève #@idEleveCharge / Cours #@idCoursOffertCharge
     </div>
@@ -57,11 +48,9 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                     <tr>
                         <th>Date</th>
                         <th>Type</th>
-                        <th>Catégorie</th>
                         <th>Description</th>
                         <th>Pondération</th>
                         <th>Note</th>
-                        <th>Commentaire</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -71,7 +60,9 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                         <tr>
                             @if (editingId == n.IdNote)
                             {
-                                <td><input type="date" class="form-control" @bind="editDate" /></td>
+                                <td>
+                                    <input type="date" class="form-control" @bind="editDate" />
+                                </td>
                                 <td>
                                     <select class="form-control" @bind="editType">
                                         <option>Examen</option>
@@ -81,22 +72,9 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                                         <option>Participation</option>
                                     </select>
                                 </td>
-                                <td>
-                                    <select class="form-control" @bind="editIdCategorie">
-                                        <option value="0">— aucune —</option>
-                                        @if (grille != null)
-                                        {
-                                            @foreach (var c in grille.Categories)
-                                            {
-                                                <option value="@c.IdCategorie">@c.Nom (@c.Ponderation%)</option>
-                                            }
-                                        }
-                                    </select>
-                                </td>
                                 <td><input class="form-control" @bind="editDescription" /></td>
                                 <td><input type="number" step="0.01" class="form-control" @bind="editPonderation" /></td>
                                 <td><input type="number" step="0.01" class="form-control" @bind="editValeur" /></td>
-                                <td><input class="form-control" @bind="editCommentaire" placeholder="Rétroaction..." /></td>
                                 <td>
                                     <button class="btn btn-success btn-sm" @onclick="() => SaveEdit(n)">💾</button>
                                     <button class="btn btn-secondary btn-sm" @onclick="CancelEdit">✖</button>
@@ -106,11 +84,9 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                             {
                                 <td>@n.DateEvaluation.ToString("yyyy-MM-dd")</td>
                                 <td><span class="sk-badge sk-badge-info" style="font-size:11px;">@n.Type</span></td>
-                                <td>@(GetCategorieNom(n.IdCategorie))</td>
                                 <td>@(string.IsNullOrEmpty(n.Description) ? "—" : n.Description)</td>
                                 <td>@n.Ponderation.ToString("F2")%</td>
                                 <td><span class="sk-note @GetNoteClass(n.Valeur)">@n.Valeur.ToString("F2")</span></td>
-                                <td style="max-width:200px; font-size:13px; color:#666;">@(string.IsNullOrEmpty(n.Commentaire) ? "—" : n.Commentaire)</td>
                                 <td>
                                     <button class="btn btn-primary btn-sm" @onclick="() => StartEdit(n)">✏️</button>
                                     <button class="btn btn-danger btn-sm" @onclick="() => Delete(n.IdNote)">🗑️</button>
@@ -147,19 +123,6 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                 </select>
             </div>
             <div>
-                <label>Catégorie (optionnelle)</label>
-                <select class="form-control" @bind="newNote.IdCategorie">
-                    <option value="0">— aucune —</option>
-                    @if (grille != null)
-                    {
-                        @foreach (var c in grille.Categories)
-                        {
-                            <option value="@c.IdCategorie">@c.Nom (@c.Ponderation%)</option>
-                        }
-                    }
-                </select>
-            </div>
-            <div>
                 <label>Description</label>
                 <input class="form-control" @bind="newNote.Description" placeholder="ex. Mi-session" />
             </div>
@@ -174,12 +137,6 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
             <div>
                 <label>Note (/100)</label>
                 <input type="number" step="0.01" class="form-control" @bind="newNote.Valeur" />
-            </div>
-        </div>
-        <div class="sk-form-row" style="margin-top:12px;">
-            <div style="flex:1;">
-                <label>Commentaire / rétroaction (optionnel) — NOT-05</label>
-                <textarea class="form-control" rows="2" @bind="newNote.Commentaire" placeholder="Ex. Excellent travail sur la deuxième partie..."></textarea>
             </div>
             <div style="align-self:flex-end;">
                 <button class="btn btn-success" @onclick="Ajouter">➕ Ajouter</button>
@@ -209,18 +166,15 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
 
     private List<NoteDto> notes = new();
     private decimal? noteFinale;
-    private GrilleDto? grille;
 
     private NoteCreate newNote = new();
 
     private int? editingId;
     private string editType = "Examen";
     private string? editDescription;
-    private string? editCommentaire;
     private DateTime editDate = DateTime.Today;
     private decimal editPonderation;
     private decimal editValeur;
-    private int editIdCategorie;
 
     private async Task Charger()
     {
@@ -244,14 +198,10 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                     $"api/notes/eleve/{idEleve}/cours/{idCoursOffert}/finale");
                 noteFinale = resp?.NoteFinale;
             }
-            catch { noteFinale = null; }
-
-            // Charger la grille du cours offert (NOT-01) — peut ne pas exister
-            try
+            catch
             {
-                grille = await Http.GetFromJsonAsync<GrilleDto>($"api/grilles/cours/{idCoursOffert}");
+                noteFinale = null;
             }
-            catch { grille = null; }
 
             idCoursOffertCharge = idCoursOffert;
             idEleveCharge = idEleve;
@@ -273,8 +223,6 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
             description = newNote.Description,
             ponderation = newNote.Ponderation,
             dateEvaluation = newNote.DateEvaluation == default ? DateTime.UtcNow : newNote.DateEvaluation,
-            commentaire = string.IsNullOrWhiteSpace(newNote.Commentaire) ? null : newNote.Commentaire,
-            idCategorie = newNote.IdCategorie > 0 ? (int?)newNote.IdCategorie : null,
             idEleve = idEleveCharge,
             idCoursOffert = idCoursOffertCharge
         };
@@ -297,11 +245,9 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
         editingId = n.IdNote;
         editType = n.Type;
         editDescription = n.Description;
-        editCommentaire = n.Commentaire;
         editDate = n.DateEvaluation;
         editPonderation = n.Ponderation;
         editValeur = n.Valeur;
-        editIdCategorie = n.IdCategorie ?? 0;
     }
 
     private void CancelEdit() => editingId = null;
@@ -315,8 +261,6 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
             description = editDescription,
             ponderation = editPonderation,
             dateEvaluation = editDate,
-            commentaire = string.IsNullOrWhiteSpace(editCommentaire) ? null : editCommentaire,
-            idCategorie = editIdCategorie > 0 ? (int?)editIdCategorie : null,
             idEleve = n.IdEleve,
             idCoursOffert = n.IdCoursOffert
         };
@@ -356,23 +300,14 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
         return "note-autre";
     }
 
-    private string GetCategorieNom(int? idCategorie)
-    {
-        if (!idCategorie.HasValue || grille == null) return "—";
-        var cat = grille.Categories.FirstOrDefault(c => c.IdCategorie == idCategorie.Value);
-        return cat?.Nom ?? "—";
-    }
-
     public class NoteDto
     {
         public int IdNote { get; set; }
         public decimal Valeur { get; set; }
         public string Type { get; set; } = "";
         public string? Description { get; set; }
-        public string? Commentaire { get; set; }
         public decimal Ponderation { get; set; }
         public DateTime DateEvaluation { get; set; }
-        public int? IdCategorie { get; set; }
         public int IdEleve { get; set; }
         public int IdCoursOffert { get; set; }
     }
@@ -382,10 +317,8 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
         public decimal Valeur { get; set; }
         public string Type { get; set; } = "Examen";
         public string? Description { get; set; }
-        public string? Commentaire { get; set; }
         public decimal Ponderation { get; set; }
         public DateTime DateEvaluation { get; set; } = DateTime.Today;
-        public int IdCategorie { get; set; }
     }
 
     public class NoteFinaleResponse
@@ -393,20 +326,5 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
         public int IdEleve { get; set; }
         public int IdCoursOffert { get; set; }
         public decimal? NoteFinale { get; set; }
-    }
-
-    public class GrilleDto
-    {
-        public int IdGrille { get; set; }
-        public int IdCoursOffert { get; set; }
-        public string? Description { get; set; }
-        public List<CategorieDto> Categories { get; set; } = new();
-    }
-
-    public class CategorieDto
-    {
-        public int IdCategorie { get; set; }
-        public string Nom { get; set; } = "";
-        public decimal Ponderation { get; set; }
     }
 }

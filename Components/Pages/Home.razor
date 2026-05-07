@@ -2,13 +2,23 @@
 @rendermode InteractiveServer
 
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 @code {
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            Navigation.NavigateTo("/login");
+            var role = await JS.InvokeAsync<string>("localStorage.getItem", "role");
+
+            if (role == "ADMIN")
+                Navigation.NavigateTo("/dashboard-admin");
+            else if (role == "ENSEIGNANT")
+                Navigation.NavigateTo("/dashboard-enseignant");
+            else if (role == "ELEVE")
+                Navigation.NavigateTo("/dashboard-eleve");
+            else
+                Navigation.NavigateTo("/dashboard-admin"); // accès direct sans blocage
         }
     }
 }

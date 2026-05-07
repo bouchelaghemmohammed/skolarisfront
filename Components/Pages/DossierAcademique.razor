@@ -15,15 +15,12 @@ else if (dossier == null)
         Aucun dossier académique trouvé.<br />
         <small style="color:#90caf9;">Votre compte n'est peut-être pas encore associé à un élève.</small>
     </div>
-    <div class="mt-4">
-        <button class="sk-btn sk-btn-outline" @onclick="Back">← Retour au tableau de bord</button>
-    </div>
 }
 else
 {
     <!-- En-tête dossier -->
     <div class="sk-dossier-header">
-        <div class="sk-dossier-avatar" title="Initiales de l'élève">@GetInitiales(dossier.EleveNom)</div>
+        <div class="sk-dossier-avatar">@GetInitiales(dossier.EleveNom)</div>
         <div>
             <h2 class="sk-dossier-name">@dossier.EleveNom</h2>
             <p class="sk-dossier-sub">Dossier académique — Élève</p>
@@ -114,11 +111,11 @@ else
             </table>
         </div>
     }
-
-    <div class="mt-4">
-        <button class="sk-btn sk-btn-outline" @onclick="Back">← Retour au tableau de bord</button>
-    </div>
 }
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick="Back">← Retour au tableau de bord</button>
+</div>
 
 @code {
     private DossierDto? dossier;
@@ -131,7 +128,9 @@ else
             var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "userId");
             if (int.TryParse(userIdStr, out var userId))
             {
-                dossier = await Http.GetFromJsonAsync<DossierDto>($"api/dossier/{userId}");
+                var res = await Http.GetAsync($"api/dossier/{userId}");
+                if (res.IsSuccessStatusCode)
+                    dossier = await res.Content.ReadFromJsonAsync<DossierDto>();
             }
 
             loaded = true;
@@ -157,9 +156,9 @@ else
     private string GetSessionClass(string nom) => nom switch
     {
         "Automne" => "session-automne",
-        "Hiver" => "session-hiver",
-        "Ete" => "session-ete",
-        _ => ""
+        "Hiver"   => "session-hiver",
+        "Ete"     => "session-ete",
+        _         => ""
     };
 
     private string GetNoteClass(string note)

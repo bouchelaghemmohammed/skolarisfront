@@ -1,5 +1,6 @@
-﻿@page "/enseignant/absences/create"
+@page "/enseignant/absences/create"
 @page "/admin/absences/create"
+@page "/enseignant/absences/edit/{Id:int}"
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject System.Text.Json.JsonSerializerOptions JsonOptions
@@ -7,7 +8,7 @@
 @using System.Net.Http.Json
 @rendermode InteractiveServer
 
-<h3>Créer une absence</h3>
+<h3>@(Id > 0 ? "Modifier une absence" : "Créer une absence")</h3>
 
 <div>
     <label>Type</label>
@@ -57,16 +58,7 @@
 </div>
 <br />
 
-<div>
-    <label>Statut</label>
-    <select class="form-control" @bind="absence.Statut">
-        <option value="@StatutAbsence.Approuvee">Justifiée</option>
-        <option value="@StatutAbsence.Refusee">Non justifiée</option>
-    </select>
-</div>
-<br />
-
-<button class="btn btn-primary" @onclick="Create">Créer</button>
+<button class="btn btn-primary" @onclick="Sauvegarder">@(Id > 0 ? "Modifier" : "Créer")</button>
 <button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/enseignant/absences")'>Retour</button>
 
 @if (!string.IsNullOrEmpty(message))
@@ -75,6 +67,8 @@
 }
 
 @code {
+    [Parameter] public int Id { get; set; }
+
     private AbsenceCreate absence = new();
     private DateTime dateAbsence = DateTime.Today;
     private string message = "";
@@ -85,8 +79,27 @@
     {
         try
         {
-            eleves = await Http.GetFromJsonAsync<List<EleveDto>>("api/eleves", JsonOptions);
-            coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert", JsonOptions);
+            var elevesTask = Http.GetFromJsonAsync<List<EleveDto>>("api/eleves", JsonOptions);
+            var coursTask = Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert", JsonOptions);
+            await Task.WhenAll(elevesTask, coursTask);
+            eleves = elevesTask.Result ?? new();
+            coursOfferts = coursTask.Result ?? new();
+
+            if (Id > 0)
+            {
+                var existante = await Http.GetFromJsonAsync<AbsenceAvecJustification>($"api/absences/{Id}", JsonOptions);
+                if (existante != null)
+                {
+                    absence = new AbsenceCreate
+                    {
+                        Type = existante.Type,
+                        DateAbsence = existante.DateAbsence,
+                        IdEleve = existante.IdEleve,
+                        IdCoursOffert = existante.IdCoursOffert
+                    };
+                    dateAbsence = existante.DateAbsence;
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -94,15 +107,34 @@
         }
     }
 
-    private async Task Create()
+    private async Task Sauvegarder()
     {
         absence.DateAbsence = dateAbsence;
-        
-        var res = await Http.PostAsJsonAsync("api/absences", absence, JsonOptions);
-        if (res.IsSuccessStatusCode)
-            Navigation.NavigateTo("/enseignant/absences?created=true");
+
+        HttpResponseMessage res;
+        int idAbsence = Id;
+
+        if (Id > 0)
+        {
+            res = await Http.PutAsJsonAsync($"api/absences/{Id}", absence, JsonOptions);
+        }
         else
+        {
+            res = await Http.PostAsJsonAsync("api/absences", absence, JsonOptions);
+            if (res.IsSuccessStatusCode)
+            {
+                var created = await res.Content.ReadFromJsonAsync<AbsenceIdResponse>(JsonOptions);
+                idAbsence = created?.IdAbsence ?? 0;
+            }
+        }
+
+        if (!res.IsSuccessStatusCode)
+        {
             message = $"Erreur : {await res.Content.ReadAsStringAsync()}";
+            return;
+        }
+
+        Navigation.NavigateTo("/enseignant/absences?created=true");
     }
 
     public class AbsenceCreate
@@ -112,6 +144,28 @@
         public DateTime DateAbsence { get; set; }
         public int IdEleve { get; set; }
         public int IdCoursOffert { get; set; }
+    }
+
+    public class AbsenceAvecJustification
+    {
+        public int IdAbsence { get; set; }
+        public TypeAbsence Type { get; set; }
+        public StatutAbsence Statut { get; set; }
+        public DateTime DateAbsence { get; set; }
+        public int IdEleve { get; set; }
+        public int IdCoursOffert { get; set; }
+        public JustificationDto? Justification { get; set; }
+    }
+
+    public class JustificationDto
+    {
+        public string Statut { get; set; } = "";
+        public string? Description { get; set; }
+    }
+
+    public class AbsenceIdResponse
+    {
+        public int IdAbsence { get; set; }
     }
 
     public class EleveDto

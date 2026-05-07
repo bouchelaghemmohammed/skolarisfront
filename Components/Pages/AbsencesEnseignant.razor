@@ -1,103 +1,204 @@
-﻿@page "/enseignant/absences"
+@page "/enseignant/absences"
+@rendermode InteractiveServer
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.WebUtilities
 
-<h3>Gestion des absences</h3>
-
-<button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/enseignant/absences/create")'>
-    ➕ Créer une absence
-</button>
-<br />
-<br />
-
-@if (!string.IsNullOrEmpty(message))
+@if (!loaded)
 {
-    <div class="alert alert-success">@message</div>
-}
-
-@if (absences == null)
-{
-    <p>Chargement...</p>
+    <div class="sk-loading">Chargement des absences...</div>
 }
 else
 {
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Type</th>
-                <th>Statut</th>
-                <th>Date</th>
-                <th>Élève</th>
-                <th>Cours offert</th>
-            </tr>
-        </thead>
-        <tbody>
-            @if (!absences.Any())
-            {
-                <tr>
-                    <td colspan="6" class="text-center">Aucune absence</td>
-                </tr>
-            }
-            else
-            {
-                @foreach (var a in absences)
-                {
+    <div class="sk-dossier-header">
+        <div class="sk-dossier-avatar">📋</div>
+        <div>
+            <h2 class="sk-dossier-name">Gestion des absences</h2>
+            <p class="sk-dossier-sub">Tableau de bord — Enseignant</p>
+        </div>
+    </div>
+
+    <div class="sk-stats-row">
+        <div class="sk-stat-card">
+            <div class="sk-stat-icon">📋</div>
+            <div class="sk-stat-value">@absences.Count</div>
+            <div class="sk-stat-label">Total</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-warn">
+            <div class="sk-stat-icon">⏳</div>
+            <div class="sk-stat-value">@absences.Count(a => a.Statut == "EnAttente")</div>
+            <div class="sk-stat-label">En attente</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-green">
+            <div class="sk-stat-icon">✅</div>
+            <div class="sk-stat-value">@absences.Count(a => a.Statut == "Approuvee")</div>
+            <div class="sk-stat-label">Approuvées</div>
+        </div>
+        <div class="sk-stat-card sk-stat-card-accent">
+            <div class="sk-stat-icon">❌</div>
+            <div class="sk-stat-value">@absences.Count(a => a.Statut == "Refusee")</div>
+            <div class="sk-stat-label">Refusées</div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="sk-alert @(message.StartsWith("❌") ? "sk-alert-danger" : "sk-alert-success")">@message</div>
+    }
+
+    <div class="sk-section-title" style="margin-top:32px;">Liste des absences</div>
+
+    <div class="mb-3">
+        <button class="sk-btn sk-btn-primary" @onclick='() => Navigation.NavigateTo("/enseignant/absences/create")'>
+            ➕ Créer une absence
+        </button>
+    </div>
+
+    @if (!absences.Any())
+    {
+        <div class="sk-empty">Aucune absence enregistrée pour le moment.</div>
+    }
+    else
+    {
+        <div class="sk-table-wrapper">
+            <table class="sk-table">
+                <thead>
                     <tr>
-                        <td>@a.IdAbsence</td>
-                        <td>@a.Type</td>
-                        <td>@a.Statut</td>
-                        <td>@a.DateAbsence.ToString("yyyy-MM-dd")</td>
-                        <td>@GetEleveLabel(a.IdEleve)</td>
-                        <td>@GetCoursLabel(a.IdCoursOffert)</td>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Justification élève</th>
+                        <th>Décision</th>
+                        <th>Élève</th>
+                        <th>Cours</th>
+                        <th>Actions</th>
                     </tr>
-                }
-            }
-        </tbody>
-    </table>
+                </thead>
+                <tbody>
+                    @foreach (var a in absences.OrderByDescending(a => a.DateAbsence))
+                    {
+                        <tr>
+                            <td>@a.DateAbsence.ToString("yyyy-MM-dd")</td>
+                            <td><span class="sk-badge @GetTypeClass(a.Type)">@a.Type</span></td>
+                            <td>@(string.IsNullOrEmpty(a.Justification?.Description) ? "—" : a.Justification.Description)</td>
+                            <td><span class="sk-badge @GetStatutClass(a.Statut)">@GetStatutLabel(a.Statut)</span></td>
+                            <td>@GetEleveLabel(a.IdEleve)</td>
+                            <td>@GetCoursLabel(a.IdCoursOffert)</td>
+                            <td class="sk-actions">
+                                <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick='() => Navigation.NavigateTo($"/enseignant/absences/edit/{a.IdAbsence}")'>Modifier</button>
+                                <button class="sk-btn sk-btn-sm sk-btn-danger" @onclick="() => SupprimerAbsence(a.IdAbsence)">Supprimer</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 }
 
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-enseignant")'>← Retour au tableau de bord</button>
+</div>
+
 @code {
-    private List<Absence>? absences;
-    private List<EleveDto>? eleves;
-    private List<CoursOffertDto>? coursOfferts;
+    private List<Absence> absences = new();
+    private List<EleveDto> eleves = new();
+    private List<CoursOffertDto> coursOfferts = new();
     private string message = "";
+    private bool loaded = false;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
-        if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("created", out var created) && created == "true")
+        if (firstRender)
         {
-            message = "✅ Absence créée avec succès.";
+            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("created", out var created) && created == "true")
+                message = "✅ Absence enregistrée avec succès.";
+
+            var absencesTask = Http.GetFromJsonAsync<List<Absence>>("api/absences");
+            var elevesTask = Http.GetFromJsonAsync<List<EleveDto>>("api/eleves");
+            var coursTask = Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
+
+            await Task.WhenAll(absencesTask, elevesTask, coursTask);
+
+            absences = absencesTask.Result ?? new();
+            eleves = elevesTask.Result ?? new();
+            coursOfferts = coursTask.Result ?? new();
+
+            loaded = true;
+            StateHasChanged();
         }
-
-        var absencesTask = Http.GetFromJsonAsync<List<Absence>>("api/absences");
-        var elevesTask = Http.GetFromJsonAsync<List<EleveDto>>("api/eleves");
-        var coursTask = Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
-
-        await Task.WhenAll(absencesTask, elevesTask, coursTask);
-
-        absences = absencesTask.Result ?? new();
-        eleves = elevesTask.Result ?? new();
-        coursOfferts = coursTask.Result ?? new();
     }
 
     private string GetEleveLabel(int idEleve)
     {
-        var eleve = eleves?.FirstOrDefault(e => e.IdEleve == idEleve);
-        if (eleve == null) return $"Inconnu (#{idEleve})";
-        return $"{eleve.Prenom} {eleve.Nom} ({eleve.Matricule})";
+        var e = eleves.FirstOrDefault(x => x.IdEleve == idEleve);
+        return e == null ? $"#{idEleve}" : $"{e.Prenom} {e.Nom} ({e.Matricule})";
     }
 
     private string GetCoursLabel(int idCoursOffert)
     {
-        var cours = coursOfferts?.FirstOrDefault(c => c.IdCoursOffert == idCoursOffert);
-        if (cours == null) return $"Inconnu (#{idCoursOffert})";
-        return !string.IsNullOrEmpty(cours.NomCours)
-            ? $"{cours.NomCours} ({cours.ModeEnseignement})"
-            : $"Cours #{cours.IdCoursOffert} ({cours.ModeEnseignement})";
+        var c = coursOfferts.FirstOrDefault(x => x.IdCoursOffert == idCoursOffert);
+        if (c == null) return $"Cours #{idCoursOffert}";
+        return !string.IsNullOrEmpty(c.NomCours)
+            ? $"{c.NomCours} ({c.ModeEnseignement})"
+            : $"Cours #{idCoursOffert} ({c.ModeEnseignement})";
+    }
+
+    private string GetStatutLabel(string statut) => statut switch
+    {
+        "EnAttente" => "En attente",
+        "Approuvee" => "Approuvée",
+        "Refusee"   => "Refusée",
+        _           => statut
+    };
+
+    private string GetStatutClass(string statut) => statut switch
+    {
+        "EnAttente" => "sk-badge-warn",
+        "Approuvee" => "sk-badge-active",
+        "Refusee"   => "sk-badge-inactive",
+        _           => "sk-badge-info"
+    };
+
+    private string GetJustifLabel(string? statut) => statut switch
+    {
+        "Justifiee"    => "Justifiée",
+        "NonJustifiee" => "Non justifiée",
+        _              => "—"
+    };
+
+    private string GetJustifClass(string? statut) => statut switch
+    {
+        "Justifiee"    => "sk-badge-active",
+        "NonJustifiee" => "sk-badge-inactive",
+        _              => "sk-badge-warn"
+    };
+
+    private string GetTypeClass(string type) => type switch
+    {
+        "Retard"  => "sk-badge-warn",
+        "Maladie" => "sk-badge-accent",
+        _         => "sk-badge-info"
+    };
+
+    private async Task SupprimerAbsence(int id)
+    {
+        bool confirmation = await JS.InvokeAsync<bool>("confirm", "Voulez-vous vraiment supprimer cette absence ?");
+        if (!confirmation) return;
+
+        var res = await Http.DeleteAsync($"api/absences/{id}");
+        if (res.IsSuccessStatusCode)
+        {
+            message = "✅ Absence supprimée avec succès.";
+            absences = absences.Where(a => a.IdAbsence != id).ToList();
+            StateHasChanged();
+        }
+        else
+        {
+            message = $"❌ Erreur : {await res.Content.ReadAsStringAsync()}";
+        }
     }
 
     public class Absence
@@ -108,6 +209,13 @@ else
         public DateTime DateAbsence { get; set; }
         public int IdEleve { get; set; }
         public int IdCoursOffert { get; set; }
+        public JustificationDto? Justification { get; set; }
+    }
+
+    public class JustificationDto
+    {
+        public string Statut { get; set; } = "";
+        public string? Description { get; set; }
     }
 
     public class EleveDto

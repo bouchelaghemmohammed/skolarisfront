@@ -7,12 +7,11 @@
 <h2 class="sk-section-title">Génération de bulletins</h2>
 
 <p class="sk-welcome-sub" style="margin-top:-8px;">
-    Générer un bulletin pour un élève, ou en lot pour un groupe complet. Envoyer par courriel à l'élève. Verrouiller la saisie des notes.
+    Générer ou régénérer le bulletin officiel d'un élève pour une session donnée.
+    Le calcul se base sur les notes pondérées de tous les cours offerts auxquels l'élève est inscrit.
 </p>
 
-<!-- NOT-07 : un seul élève -->
-<div class="sk-section-title" style="margin-top:24px;">📄 Bulletin individuel (NOT-07)</div>
-<div class="sk-card">
+<div class="sk-card" style="margin-top:16px;">
     <div class="sk-form-row">
         <div>
             <label>ID Élève</label>
@@ -24,15 +23,22 @@
         </div>
         <div style="align-self:flex-end;">
             <button class="btn btn-primary" @onclick="Generer" disabled="@enCours">
-                @(enCours ? "Génération..." : "Générer")
+                @(enCours ? "Génération..." : "📄 Générer le bulletin")
             </button>
         </div>
     </div>
 </div>
 
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert @(success ? "alert-success" : "alert-danger") mt-3">@message</div>
+}
+
 @if (bulletin != null)
 {
-    <div class="sk-stats-row" style="margin-top:16px;">
+    <div class="sk-section-title" style="margin-top:32px;">Bulletin généré</div>
+
+    <div class="sk-stats-row">
         <div class="sk-stat-card sk-stat-card-blue">
             <div class="sk-stat-icon">🆔</div>
             <div class="sk-stat-value">@bulletin.IdBulletin</div>
@@ -49,91 +55,32 @@
             <div class="sk-stat-label">Mention</div>
         </div>
     </div>
-    <button class="btn btn-info mt-3" @onclick="EnvoyerCourriel" disabled="@enEnvoi">
-        @(enEnvoi ? "Envoi..." : "✉️ Envoyer par courriel à l'élève (NOT-09)")
-    </button>
-}
 
-<!-- NOT-08 : en lot -->
-<div class="sk-section-title" style="margin-top:32px;">📦 Bulletins en lot par groupe (NOT-08)</div>
-<div class="sk-card">
-    <div class="sk-form-row">
-        <div>
-            <label>ID Groupe</label>
-            <input type="number" class="form-control" @bind="idGroupe" />
-        </div>
-        <div>
-            <label>ID Session</label>
-            <input type="number" class="form-control" @bind="idSessionLot" />
-        </div>
-        <div style="align-self:flex-end;">
-            <button class="btn btn-primary" @onclick="GenererLot" disabled="@enLot">
-                @(enLot ? "Génération en cours..." : "Générer en lot")
-            </button>
-        </div>
-    </div>
-</div>
-
-@if (lot != null)
-{
-    <div class="alert alert-success mt-3">
-        Lot terminé : @lot.NombreReussites / @lot.NombreEleves bulletins générés.
-    </div>
-    <div class="sk-table-wrapper">
-        <table class="sk-table">
-            <thead>
-                <tr>
-                    <th>Élève</th>
-                    <th>Statut</th>
-                    <th>Bulletin</th>
-                    <th>Moyenne</th>
-                    <th>Mention</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var e in lot.Entries)
-                {
+    @if (bulletin.DetailBulletins != null && bulletin.DetailBulletins.Any())
+    {
+        <div class="sk-section-title" style="margin-top:24px;">Détail des notes incluses</div>
+        <div class="sk-table-wrapper">
+            <table class="sk-table">
+                <thead>
                     <tr>
-                        <td>@e.NomComplet (#@e.IdEleve)</td>
-                        <td>@(e.Success ? "✅" : "❌") @e.Message</td>
-                        <td>@(e.IdBulletin?.ToString() ?? "—")</td>
-                        <td>@(e.MoyenneGenerale.HasValue ? e.MoyenneGenerale.Value.ToString("F2") : "—")</td>
-                        <td>@(e.Mention ?? "—")</td>
-                        <td>
-                            @if (e.IdBulletin.HasValue)
-                            {
-                                <button class="btn btn-sm btn-info" @onclick="() => EnvoyerLotCourriel(e.IdBulletin!.Value, e.IdEleve)">✉️</button>
-                            }
-                        </td>
+                        <th>ID Détail</th>
+                        <th>ID Note</th>
+                        <th>ID Cours offert</th>
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-}
-
-<!-- NOT-10 : verrouillage -->
-<div class="sk-section-title" style="margin-top:32px;">🔒 Verrouillage de la saisie de notes (NOT-10)</div>
-<div class="sk-card">
-    <div class="sk-form-row">
-        <div>
-            <label>ID Session à verrouiller</label>
-            <input type="number" class="form-control" @bind="idSessionLock" />
+                </thead>
+                <tbody>
+                    @foreach (var d in bulletin.DetailBulletins)
+                    {
+                        <tr>
+                            <td>@d.IdDetailBulletin</td>
+                            <td>@d.IdNote</td>
+                            <td>@d.IdCoursOffert</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
-        <div>
-            <label>Date limite (vide = déverrouillé)</label>
-            <input type="date" class="form-control" @bind="dateLimite" />
-        </div>
-        <div style="align-self:flex-end;">
-            <button class="btn btn-warning" @onclick="SetDateLimite">Appliquer</button>
-        </div>
-    </div>
-</div>
-
-@if (!string.IsNullOrEmpty(message))
-{
-    <div class="alert @(success ? "alert-success" : "alert-danger") mt-3">@message</div>
+    }
 }
 
 <div class="mt-4">
@@ -143,143 +90,49 @@
 </div>
 
 @code {
-    // NOT-07
     private int idEleve;
     private int idSession;
-    private bool enCours, enEnvoi;
-    private BulletinDto? bulletin;
-
-    // NOT-08
-    private int idGroupe;
-    private int idSessionLot;
-    private bool enLot;
-    private LotDto? lot;
-
-    // NOT-10
-    private int idSessionLock;
-    private DateTime? dateLimite;
-
+    private bool enCours = false;
     private bool success = false;
     private string message = "";
+    private BulletinDto? bulletin;
 
     private async Task Generer()
     {
         if (idEleve <= 0 || idSession <= 0)
         {
-            Fail("Veuillez fournir un ID élève et un ID session valides.");
+            message = "Veuillez fournir un ID élève et un ID session valides.";
+            success = false;
             return;
         }
-        enCours = true; bulletin = null; message = "";
+
+        enCours = true;
+        message = "";
+        bulletin = null;
+
         try
         {
             var res = await Http.PostAsync($"api/bulletins/generer/{idEleve}/{idSession}", null);
             if (res.IsSuccessStatusCode)
             {
                 bulletin = await res.Content.ReadFromJsonAsync<BulletinDto>();
-                Ok($"Bulletin généré pour élève #{idEleve}.");
+                message = $"Bulletin généré avec succès pour l'élève #{idEleve}, session #{idSession}.";
+                success = true;
             }
             else
             {
-                Fail(await res.Content.ReadAsStringAsync());
+                message = $"Erreur : {await res.Content.ReadAsStringAsync()}";
+                success = false;
             }
         }
-        catch (Exception ex) { Fail(ex.Message); }
+        catch (Exception ex)
+        {
+            message = $"Erreur : {ex.Message}";
+            success = false;
+        }
+
         enCours = false;
     }
-
-    private async Task GenererLot()
-    {
-        if (idGroupe <= 0 || idSessionLot <= 0)
-        {
-            Fail("Veuillez fournir un ID groupe et un ID session valides.");
-            return;
-        }
-        enLot = true; lot = null; message = "";
-        try
-        {
-            var res = await Http.PostAsync($"api/bulletins/generer-lot/{idGroupe}/{idSessionLot}", null);
-            if (res.IsSuccessStatusCode)
-            {
-                lot = await res.Content.ReadFromJsonAsync<LotDto>();
-                Ok($"Génération en lot terminée pour le groupe #{idGroupe}.");
-            }
-            else
-            {
-                Fail(await res.Content.ReadAsStringAsync());
-            }
-        }
-        catch (Exception ex) { Fail(ex.Message); }
-        enLot = false;
-    }
-
-    private async Task EnvoyerCourriel()
-    {
-        if (bulletin == null) return;
-        enEnvoi = true; message = "";
-        try
-        {
-            var res = await Http.PostAsync($"api/bulletins/{bulletin.IdBulletin}/envoyer", null);
-            if (res.IsSuccessStatusCode)
-            {
-                var resp = await res.Content.ReadFromJsonAsync<EnvoiResponse>();
-                Ok($"Courriel envoyé à {resp?.EmailDestinataire}.");
-            }
-            else
-            {
-                Fail(await res.Content.ReadAsStringAsync());
-            }
-        }
-        catch (Exception ex) { Fail(ex.Message); }
-        enEnvoi = false;
-    }
-
-    private async Task EnvoyerLotCourriel(int idBulletin, int eleveId)
-    {
-        message = "";
-        try
-        {
-            var res = await Http.PostAsync($"api/bulletins/{idBulletin}/envoyer", null);
-            if (res.IsSuccessStatusCode)
-            {
-                var resp = await res.Content.ReadFromJsonAsync<EnvoiResponse>();
-                Ok($"Courriel envoyé à {resp?.EmailDestinataire} (élève #{eleveId}).");
-            }
-            else
-            {
-                Fail(await res.Content.ReadAsStringAsync());
-            }
-        }
-        catch (Exception ex) { Fail(ex.Message); }
-    }
-
-    private async Task SetDateLimite()
-    {
-        if (idSessionLock <= 0)
-        {
-            Fail("Veuillez fournir un ID session.");
-            return;
-        }
-        message = "";
-        try
-        {
-            var payload = new { dateLimite = dateLimite };
-            var res = await Http.PutAsJsonAsync($"api/notes/sessions/{idSessionLock}/date-limite", payload);
-            if (res.IsSuccessStatusCode)
-            {
-                Ok(dateLimite.HasValue
-                    ? $"Saisie verrouillée le {dateLimite.Value:yyyy-MM-dd} pour la session #{idSessionLock}."
-                    : $"Verrouillage retiré pour la session #{idSessionLock}.");
-            }
-            else
-            {
-                Fail(await res.Content.ReadAsStringAsync());
-            }
-        }
-        catch (Exception ex) { Fail(ex.Message); }
-    }
-
-    private void Ok(string msg) { success = true; message = msg; }
-    private void Fail(string msg) { success = false; message = $"Erreur : {msg}"; }
 
     public class BulletinDto
     {
@@ -288,31 +141,13 @@
         public string Mention { get; set; } = "";
         public int IdEleve { get; set; }
         public int IdSession { get; set; }
+        public List<DetailDto>? DetailBulletins { get; set; }
     }
 
-    public class LotDto
+    public class DetailDto
     {
-        public bool Success { get; set; }
-        public int IdGroupe { get; set; }
-        public int IdSession { get; set; }
-        public int NombreEleves { get; set; }
-        public int NombreReussites { get; set; }
-        public List<LotEntry> Entries { get; set; } = new();
-    }
-
-    public class LotEntry
-    {
-        public int IdEleve { get; set; }
-        public string NomComplet { get; set; } = "";
-        public bool Success { get; set; }
-        public string? Message { get; set; }
-        public int? IdBulletin { get; set; }
-        public decimal? MoyenneGenerale { get; set; }
-        public string? Mention { get; set; }
-    }
-
-    public class EnvoiResponse
-    {
-        public string? EmailDestinataire { get; set; }
+        public int IdDetailBulletin { get; set; }
+        public int IdNote { get; set; }
+        public int IdCoursOffert { get; set; }
     }
 }
