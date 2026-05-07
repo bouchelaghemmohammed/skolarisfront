@@ -51,7 +51,6 @@
         await JS.InvokeVoidAsync("localStorage.removeItem", "role");
         await JS.InvokeVoidAsync("localStorage.removeItem", "nom");
         await JS.InvokeVoidAsync("localStorage.removeItem", "userId");
-
-        Navigation.NavigateTo("/login", true);
+        await JS.InvokeVoidAsync("eval", "window.location.replace('/login')");
     }
 }
