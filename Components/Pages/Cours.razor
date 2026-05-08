@@ -1,69 +1,166 @@
 ﻿@page "/cours"
 @rendermode InteractiveServer
 @inject HttpClient Http
+@inject NavigationManager Navigation
 
-<h3>Gestion des Cours</h3>
+<div class="sk-page-header">
+    <h2 class="sk-page-title">Gestion des cours</h2>
+    <button class="sk-btn sk-btn-primary" @onclick="OpenCreate">+ Nouveau cours</button>
+</div>
 
-<h5>Ajouter un cours</h5>
-
-<input @bind="newCours.Nom" placeholder="Nom" />
-<input @bind="newCours.Description" placeholder="Description" />
-<input type="number" @bind="newCours.Credit" placeholder="Crédit" />
-<input type="number" @bind="newCours.Duree" placeholder="Durée" />
-
-<select @bind="newCours.IdProgramme">
-    <option value="0">Choisir Programme</option>
-    @foreach (var p in programmes)
-    {
-        <option value="@p.IdProgramme">@p.Nom</option>
-    }
-</select>
-
-<input type="number" @bind="newCours.IdNiveau" placeholder="Id Niveau" />
-
-<button @onclick="Ajouter">Ajouter</button>
-
-<hr />
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="sk-alert @(isError ? "sk-alert-danger" : "sk-alert-success")">@message</div>
+}
 
 @if (cours == null)
 {
-    <p>Chargement...</p>
+    <div class="sk-loading">Chargement...</div>
+}
+else if (!cours.Any())
+{
+    <div class="sk-empty">Aucun cours trouvé.</div>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Nom</th>
-                <th>Programme</th>
-                <th>Crédit</th>
-                <th>Durée</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            @foreach (var c in cours)
-            {
+    <div class="sk-table-wrapper">
+        <table class="sk-table">
+            <thead>
                 <tr>
-                    <td>@c.Nom</td>
-                    <td>@GetProgrammeNom(c.IdProgramme)</td>
-                    <td>@c.Credit</td>
-                    <td>@c.Duree</td>
-                    <td>
-                        <button @onclick="() => Supprimer(c.IdCours)">Delete</button>
-                    </td>
+                    <th>Nom</th>
+                    <th>Code</th>
+                    <th>Programme</th>
+                    <th>Crédit</th>
+                    <th>Durée (h)</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var c in cours)
+                {
+                    <tr>
+                        <td><strong>@c.Nom</strong></td>
+                        <td>@(c.Code ?? "—")</td>
+                        <td>@GetProgrammeNom(c.IdProgramme)</td>
+                        <td>@c.Credit</td>
+                        <td>@c.Duree</td>
+                        <td>
+                            <span class="sk-badge @(c.Actif ? "sk-badge-active" : "sk-badge-inactive")">
+                                @(c.Actif ? "Actif" : "Inactif")
+                            </span>
+                        </td>
+                        <td class="sk-actions">
+                            <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="() => OpenEdit(c)">Modifier</button>
+                            <button class="sk-btn sk-btn-sm sk-btn-danger"
+                                    @onclick="() => Supprimer(c.IdCours)">Supprimer</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
+
+<!-- Modal Formulaire -->
+@if (showForm)
+{
+    <div class="sk-modal-overlay">
+        <div class="sk-modal">
+            <div class="sk-modal-header">
+                <h3>@(editId == null ? "Nouveau cours" : "Modifier le cours")</h3>
+                <button class="sk-modal-close" @onclick="CloseForm">✕</button>
+            </div>
+            <div class="sk-modal-body">
+
+                <div class="sk-form-group">
+                    <label>Nom *</label>
+                    <input class="sk-input" @bind="form.Nom" placeholder="Nom du cours" />
+                </div>
+
+                <div class="sk-form-group">
+                    <label>Code</label>
+                    <input class="sk-input" @bind="form.Code" placeholder="Ex: INF101" />
+                </div>
+
+                <div class="sk-form-group">
+                    <label>Description</label>
+                    <input class="sk-input" @bind="form.Description" placeholder="Description" />
+                </div>
+
+                <div class="sk-form-group">
+                    <label>Programme *</label>
+                    <select class="sk-input" @bind="form.IdProgramme">
+                        <option value="0">— Choisir —</option>
+                        @foreach (var p in programmes)
+                        {
+                            <option value="@p.IdProgramme">@p.Nom</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="sk-form-group">
+                    <label>Niveau *</label>
+                    <select class="sk-input" @bind="form.IdNiveau">
+                        <option value="0">— Choisir —</option>
+                        @foreach (var n in niveaux)
+                        {
+                            <option value="@n.IdNiveau">@n.Nom</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="sk-form-group">
+                    <label>Crédit</label>
+                    <input class="sk-input" type="number" @bind="form.Credit" placeholder="Nb crédits" />
+                </div>
+
+                <div class="sk-form-group">
+                    <label>Durée (heures)</label>
+                    <input class="sk-input" type="number" @bind="form.Duree" placeholder="Durée en heures" />
+                </div>
+
+                @if (editId != null)
+                {
+                    <div class="sk-form-group">
+                        <label>
+                            <input type="checkbox" @bind="form.Actif" style="margin-right:8px;" />
+                            Cours actif
+                        </label>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="sk-alert sk-alert-danger">@formError</div>
+                }
+            </div>
+            <div class="sk-modal-footer">
+                <button class="sk-btn sk-btn-outline" @onclick="CloseForm">Annuler</button>
+                <button class="sk-btn sk-btn-primary" @onclick="SaveForm">
+                    @(editId == null ? "Créer" : "Enregistrer")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>← Retour au tableau
+        de bord</button>
+    </div>
 
 @code {
     List<CoursDto>? cours;
     List<ProgrammeDto> programmes = new();
+    List<NiveauDto> niveaux = new();
 
-    CoursDto newCours = new();
+    bool showForm = false;
+    int? editId = null;
+    CoursDto form = new();
+    string message = "";
+    bool isError = false;
+    string formError = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,25 +171,76 @@ else
     {
         cours = await Http.GetFromJsonAsync<List<CoursDto>>("api/Cours");
         programmes = await Http.GetFromJsonAsync<List<ProgrammeDto>>("api/Programme") ?? new();
+        niveaux = await Http.GetFromJsonAsync<List<NiveauDto>>("api/Niveau") ?? new();
     }
 
-    async Task Ajouter()
+    void OpenCreate()
     {
-        await Http.PostAsJsonAsync("api/Cours", newCours);
-        newCours = new CoursDto();
-        await Charger();
+        editId = null;
+        form = new CoursDto { Actif = true };
+        formError = "";
+        showForm = true;
+    }
+
+    async Task OpenEdit(CoursDto c)
+    {
+        editId = c.IdCours;
+        form = new CoursDto
+        {
+            IdCours = c.IdCours,
+            Nom = c.Nom,
+            Code = c.Code,
+            Description = c.Description,
+            IdProgramme = c.IdProgramme,
+            IdNiveau = c.IdNiveau,
+            Credit = c.Credit,
+            Duree = c.Duree,
+            Actif = c.Actif
+        };
+        formError = "";
+        showForm = true;
+    }
+
+    void CloseForm() => showForm = false;
+
+    async Task SaveForm()
+    {
+        formError = "";
+        if (string.IsNullOrWhiteSpace(form.Nom)) { formError = "Le nom est obligatoire."; return; }
+        if (form.IdProgramme == 0) { formError = "Veuillez choisir un programme."; return; }
+        if (form.IdNiveau == 0) { formError = "Veuillez choisir un niveau."; return; }
+
+        if (editId == null)
+        {
+            var res = await Http.PostAsJsonAsync("api/Cours", form);
+            isError = !res.IsSuccessStatusCode;
+            message = isError ? "Erreur lors de la création." : "✅ Cours créé.";
+        }
+        else
+        {
+            form.IdCours = editId.Value;
+            var res = await Http.PutAsJsonAsync($"api/Cours/{editId}", form);
+            isError = !res.IsSuccessStatusCode;
+            message = isError ? "Erreur lors de la modification." : "✅ Cours mis à jour.";
+        }
+
+        if (!isError)
+        {
+            showForm = false;
+            await Charger();
+        }
     }
 
     async Task Supprimer(int id)
     {
-        await Http.DeleteAsync($"api/Cours/{id}");
+        var res = await Http.DeleteAsync($"api/Cours/{id}");
+        isError = !res.IsSuccessStatusCode;
+        message = isError ? "Erreur lors de la suppression." : "✅ Cours supprimé.";
         await Charger();
     }
 
-    string GetProgrammeNom(int id)
-    {
-        return programmes.FirstOrDefault(p => p.IdProgramme == id)?.Nom ?? "N/A";
-    }
+    string GetProgrammeNom(int id) =>
+        programmes.FirstOrDefault(p => p.IdProgramme == id)?.Nom ?? "N/A";
 
     public class CoursDto
     {
@@ -100,6 +248,7 @@ else
         public int IdProgramme { get; set; }
         public int IdNiveau { get; set; }
         public string Nom { get; set; } = "";
+        public string? Code { get; set; }
         public string Description { get; set; } = "";
         public int Credit { get; set; }
         public int Duree { get; set; }
@@ -111,5 +260,12 @@ else
         public int IdProgramme { get; set; }
         public string Nom { get; set; } = "";
         public string Description { get; set; } = "";
+    }
+
+    public class NiveauDto
+    {
+        public int IdNiveau { get; set; }
+        public string Nom { get; set; } = "";
+        public int IdProgramme { get; set; }
     }
 }

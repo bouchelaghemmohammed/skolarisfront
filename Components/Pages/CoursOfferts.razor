@@ -1,69 +1,194 @@
 ﻿@page "/coursofferts"
 @rendermode InteractiveServer
 @inject HttpClient Http
+@inject NavigationManager Navigation
 
-<h3>Gestion des Cours Offerts</h3>
+<div class="sk-page-header">
+    <h2 class="sk-page-title">Cours offerts</h2>
+    <button class="sk-btn sk-btn-primary" @onclick="OpenCreate">+ Nouveau cours offert</button>
+</div>
 
-<h5>Ajouter un cours offert</h5>
-
-<select @bind="newCoursOffert.IdCours">
-    <option value="0">Choisir Cours</option>
-    @foreach (var c in cours)
-    {
-        <option value="@c.IdCours">@c.Nom</option>
-    }
-</select>
-
-<input type="number" @bind="newCoursOffert.IdSession" placeholder="Id Session" />
-
-<select @bind="newCoursOffert.ModeEnseignement">
-    <option value="">Choisir mode</option>
-    <option value="Présentiel">Présentiel</option>
-    <option value="En ligne">En ligne</option>
-    <option value="Hybride">Hybride</option>
-</select>
-
-<button @onclick="Ajouter">Ajouter</button>
-
-<hr />
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="sk-alert @(isError ? "sk-alert-danger" : "sk-alert-success")">@message</div>
+}
 
 @if (coursOfferts == null)
 {
-    <p>Chargement...</p>
+    <div class="sk-loading">Chargement...</div>
+}
+else if (!coursOfferts.Any())
+{
+    <div class="sk-empty">Aucun cours offert trouvé.</div>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Cours</th>
-                <th>Session</th>
-                <th>Mode</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            @foreach (var co in coursOfferts)
+    @foreach (var group in coursOfferts.GroupBy(co => co.IdProgramme).OrderBy(g => g.First().NomProgramme))
+    {
+        var isOpen = expandedProgrammes.Contains(group.Key);
+        <div style="margin-bottom:12px;">
+            <div @onclick="() => ToggleProgramme(group.Key)" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;
+                padding:14px 18px; background:var(--sk-surface,#fff);
+                border:1px solid var(--sk-border,#e2e8f0); border-radius:@(isOpen ? "8px 8px 0 0" : "8px");
+                user-select:none;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.2em;">📘</span>
+                    <strong>@group.First().NomProgramme</strong>
+                    <span class="sk-badge">@group.Count() cours</span>
+                </div>
+                <span>@(isOpen ? "▲" : "▼")</span>
+            </div>
+            @if (isOpen)
             {
-                <tr>
-                    <td>@GetCoursNom(co.IdCours)</td>
-                    <td>@co.IdSession</td>
-                    <td>@co.ModeEnseignement</td>
-                    <td>
-                        <button @onclick="() => Supprimer(co.IdCoursOffert)">Delete</button>
-                    </td>
-                </tr>
+                <div class="sk-table-wrapper" style="border-radius:0 0 8px 8px; border-top:none;">
+                    <table class="sk-table">
+                        <thead>
+                            <tr>
+                                <th>Cours</th>
+                                <th>Session</th>
+                                <th>Mode d'enseignement</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var co in group)
+                            {
+                                <tr>
+                                    <td><strong>@co.NomCours</strong></td>
+                                    <td><span class="sk-badge sk-badge-session">@co.NomSession</span></td>
+                                    <td><span class="sk-badge sk-badge-mode">@GetModeLabel(co.ModeEnseignement)</span></td>
+                                    <td class="sk-actions">
+                                        <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="() => OpenEdit(co)">Modifier</button>
+                                        <button class="sk-btn sk-btn-sm sk-btn-danger"
+                                                @onclick="() => Supprimer(co.IdCoursOffert)">Supprimer</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             }
-        </tbody>
-    </table>
+        </div>
+    }
 }
+
+<!-- Modal Formulaire -->
+@if (showForm)
+{
+    <div class="sk-modal-overlay">
+        <div class="sk-modal">
+            <div class="sk-modal-header">
+                <h3>@(editId == null ? "Nouveau cours offert" : "Modifier le cours offert")</h3>
+                <button class="sk-modal-close" @onclick="CloseForm">✕</button>
+            </div>
+            <div class="sk-modal-body">
+
+                @if (editId == null)
+                {
+                    <!-- Création : choisir programme → filtre les cours -->
+                    <div class="sk-form-group">
+                        <label>Programme *</label>
+                        <select class="sk-input" @bind="selectedProgramme" @bind:after="OnProgrammeChanged">
+                            <option value="0">— Choisir —</option>
+                            @foreach (var p in programmes)
+                            {
+                                <option value="@p.IdProgramme">@p.Nom</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="sk-form-group">
+                        <label>Cours *</label>
+                        <select class="sk-input" @bind="form.IdCours">
+                            <option value="0">— Choisir —</option>
+                            @foreach (var c in coursFiltres)
+                            {
+                                <option value="@c.IdCours">@c.Nom</option>
+                            }
+                        </select>
+                        @if (selectedProgramme == 0)
+                        {
+                            <small style="color:var(--sk-muted)">Choisissez d'abord un programme</small>
+                        }
+                    </div>
+
+                    <div class="sk-form-group">
+                        <label>Groupe *</label>
+                        <select class="sk-input" @bind="form.IdGroupe">
+                            <option value="0">— Choisir —</option>
+                            @foreach (var g in groupes)
+                            {
+                                <option value="@g.Id">@g.Nom</option>
+                            }
+                        </select>
+                    </div>
+                }
+                else
+                {
+                    <div class="sk-form-group">
+                        <label>Cours</label>
+                        <input class="sk-input" disabled
+                               value="@coursOfferts!.FirstOrDefault(co => co.IdCoursOffert == editId)?.NomCours" />
+                    </div>
+                }
+
+                <div class="sk-form-group">
+                    <label>Session *</label>
+                    <select class="sk-input" @bind="form.IdSession">
+                        <option value="0">— Choisir —</option>
+                        @foreach (var s in sessions)
+                        {
+                            <option value="@s.IdSession">@s.Libelle (@s.Type)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="sk-form-group">
+                    <label>Mode d'enseignement *</label>
+                    <select class="sk-input" @bind="form.ModeEnseignement">
+                        <option value="">— Choisir —</option>
+                        <option value="Présentiel">Présentiel</option>
+                        <option value="EnLigne">En ligne</option>
+                        <option value="Hybride">Hybride</option>
+                    </select>
+                </div>
+
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="sk-alert sk-alert-danger">@formError</div>
+                }
+            </div>
+            <div class="sk-modal-footer">
+                <button class="sk-btn sk-btn-outline" @onclick="CloseForm">Annuler</button>
+                <button class="sk-btn sk-btn-primary" @onclick="SaveForm">
+                    @(editId == null ? "Créer" : "Enregistrer")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>← Retour au tableau
+        de bord</button>
+    </div>
 
 @code {
     List<CoursDto> cours = new();
+    List<CoursDto> coursFiltres = new();
+    List<ProgrammeDto> programmes = new();
+    List<GroupeDto> groupes = new();
+    List<SessionDto> sessions = new();
     List<CoursOffertDto>? coursOfferts;
 
-    CoursOffertDto newCoursOffert = new();
+    HashSet<int> expandedProgrammes = new();
+    bool showForm = false;
+    int? editId = null;
+    int selectedProgramme = 0;
+    CoursOffertFormDto form = new();
+    string message = "";
+    bool isError = false;
+    string formError = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -72,41 +197,133 @@ else
 
     async Task Charger()
     {
-        cours = await Http.GetFromJsonAsync<List<CoursDto>>("api/Cours") ?? new();
-        coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
+        var t1 = Http.GetFromJsonAsync<List<CoursDto>>("api/Cours");
+        var t2 = Http.GetFromJsonAsync<List<SessionDto>>("api/sessions");
+        var t3 = Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
+        var t4 = Http.GetFromJsonAsync<List<ProgrammeDto>>("api/Programme");
+        var t5 = Http.GetFromJsonAsync<List<GroupeDto>>("api/Groupes");
+        await Task.WhenAll(t1, t2, t3, t4, t5);
+        cours = t1.Result ?? new();
+        sessions = t2.Result ?? new();
+        coursOfferts = t3.Result ?? new();
+        programmes = t4.Result ?? new();
+        groupes = t5.Result ?? new();
     }
 
-    async Task Ajouter()
+    void ToggleProgramme(int id)
     {
-        var response = await Http.PostAsJsonAsync("api/CoursOffert", newCoursOffert);
+        if (!expandedProgrammes.Add(id))
+            expandedProgrammes.Remove(id);
+    }
 
-        if (response.IsSuccessStatusCode)
+    void OpenCreate()
+    {
+        editId = null;
+        form = new CoursOffertFormDto();
+        selectedProgramme = 0;
+        coursFiltres = new();
+        formError = "";
+        showForm = true;
+    }
+
+    void OpenEdit(CoursOffertDto co)
+    {
+        editId = co.IdCoursOffert;
+        form = new CoursOffertFormDto
         {
-            newCoursOffert = new CoursOffertDto();
-            await Charger();
+            IdCours = co.IdCours,
+            IdSession = co.IdSession,
+            IdGroupe = co.IdGroupe,
+            ModeEnseignement = co.ModeEnseignement
+        };
+        formError = "";
+        showForm = true;
+    }
+
+    void CloseForm() => showForm = false;
+
+    void OnProgrammeChanged()
+    {
+        form.IdCours = 0;
+        coursFiltres = cours.Where(c => c.IdProgramme == selectedProgramme).ToList();
+    }
+
+    async Task SaveForm()
+    {
+        formError = "";
+        if (form.IdCours == 0) { formError = "Veuillez choisir un cours."; return; }
+        if (form.IdSession == 0) { formError = "Veuillez choisir une session."; return; }
+        if (string.IsNullOrEmpty(form.ModeEnseignement)) { formError = "Veuillez choisir un mode d'enseignement."; return; }
+
+        if (editId == null)
+        {
+            if (form.IdGroupe == 0) { formError = "Veuillez choisir un groupe."; return; }
+            var res = await Http.PostAsJsonAsync("api/CoursOffert", form);
+            isError = !res.IsSuccessStatusCode;
+            if (isError) { formError = await res.Content.ReadAsStringAsync(); return; }
+            message = "✅ Cours offert créé.";
         }
         else
         {
-            var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine(error);
+            var payload = new
+            {
+                IdCoursOffert = editId.Value,
+                form.IdCours,
+                form.IdSession,
+                form.IdGroupe,
+                form.ModeEnseignement
+            };
+            var res = await Http.PutAsJsonAsync($"api/CoursOffert/{editId}", payload);
+            isError = !res.IsSuccessStatusCode;
+            if (isError) { formError = await res.Content.ReadAsStringAsync(); return; }
+            message = "✅ Cours offert mis à jour.";
         }
+
+        showForm = false;
+        await Charger();
     }
 
     async Task Supprimer(int id)
     {
-        await Http.DeleteAsync($"api/CoursOffert/{id}");
+        var res = await Http.DeleteAsync($"api/CoursOffert/{id}");
+        isError = !res.IsSuccessStatusCode;
+        message = isError ? "Erreur lors de la suppression." : "✅ Cours offert supprimé.";
         await Charger();
     }
 
-    string GetCoursNom(int id)
+    static string GetModeLabel(string mode) => mode switch
     {
-        return cours.FirstOrDefault(c => c.IdCours == id)?.Nom ?? "N/A";
-    }
+        "EnLigne" => "En ligne",
+        "Présentiel" => "Présentiel",
+        "Hybride" => "Hybride",
+        _ => mode
+    };
 
     public class CoursDto
     {
         public int IdCours { get; set; }
         public string Nom { get; set; } = "";
+        public int IdProgramme { get; set; }
+    }
+
+    public class ProgrammeDto
+    {
+        public int IdProgramme { get; set; }
+        public string Nom { get; set; } = "";
+    }
+
+    public class GroupeDto
+    {
+        public int Id { get; set; }
+        public string Nom { get; set; } = "";
+    }
+
+    public class SessionDto
+    {
+        public int IdSession { get; set; }
+        public string Libelle { get; set; } = "";
+        public string Type { get; set; } = "";
+        public bool IsActive { get; set; }
     }
 
     public class CoursOffertDto
@@ -114,11 +331,21 @@ else
         public int IdCoursOffert { get; set; }
         public int IdCours { get; set; }
         public int IdSession { get; set; }
-
-        public int IdGroupe { get; set; } = 1;
-        public int IdEnseignant { get; set; } = 1;
-
+        public int IdGroupe { get; set; }
+        public int? IdEnseignant { get; set; }
         public string ModeEnseignement { get; set; } = "";
-        public bool Actif { get; set; } = true;
+        public string NomCours { get; set; } = "";
+        public string NomSession { get; set; } = "";
+        public int IdProgramme { get; set; }
+        public string NomProgramme { get; set; } = "";
+    }
+
+    public class CoursOffertFormDto
+    {
+        public int IdCours { get; set; }
+        public int IdSession { get; set; }
+        public int IdGroupe { get; set; }
+        public int? IdEnseignant { get; set; } = null;
+        public string ModeEnseignement { get; set; } = "";
     }
 }

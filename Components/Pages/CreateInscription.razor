@@ -1,49 +1,68 @@
 ﻿@page "/admin/inscriptions/create"
+@rendermode InteractiveServer
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @using System.Net.Http.Json
 
-<h3>Inscrire un élève à un cours offert</h3>
-
-@if (!string.IsNullOrEmpty(message))
+@if (!loaded)
 {
-    <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
+    <div class="sk-loading">Chargement...</div>
+}
+else
+{
+    <div class="sk-dossier-header">
+        <div class="sk-dossier-avatar">➕</div>
+        <div>
+            <h2 class="sk-dossier-name">Nouvelle inscription</h2>
+            <p class="sk-dossier-sub">Inscrire un élève à un cours offert</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="sk-alert @(isError ? "sk-alert-danger" : "sk-alert-success")">@message</div>
+    }
+
+    <div class="sk-modal" style="max-width:560px; box-shadow:none; border:1px solid var(--sk-border,#e2e8f0);">
+        <div class="sk-modal-body">
+
+            <div class="sk-form-group">
+                <label>Élève *</label>
+                <select class="sk-input" @bind="inscription.IdEleve">
+                    <option value="0">— Sélectionner un élève —</option>
+                    @foreach (var e in eleves ?? new())
+                    {
+                        <option value="@e.IdEleve">@e.Prenom @e.Nom (@e.Matricule)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="sk-form-group">
+                <label>Cours offert *</label>
+                <select class="sk-input" @bind="inscription.IdCoursOffert">
+                    <option value="0">— Sélectionner un cours —</option>
+                    @foreach (var c in coursOfferts ?? new())
+                    {
+                        <option value="@c.IdCoursOffert">
+                            @c.NomCours — @c.NomSession (@GetModeLabel(c.ModeEnseignement))
+                        </option>
+                    }
+                </select>
+            </div>
+
+        </div>
+        <div class="sk-modal-footer">
+            <button class="sk-btn sk-btn-outline"
+                    @onclick='() => Navigation.NavigateTo("/admin/inscriptions")'>Annuler</button>
+            <button class="sk-btn sk-btn-primary" @onclick="Create">Inscrire</button>
+        </div>
+    </div>
 }
 
-<div>
-    <label>Élève</label>
-    <select class="form-control" @bind="inscription.IdEleve">
-        <option value="0">-- Sélectionner --</option>
-        @if (eleves != null)
-        {
-            @foreach (var e in eleves)
-            {
-                <option value="@e.IdEleve">@e.Prenom @e.Nom (@e.Matricule)</option>
-            }
-        }
-    </select>
-</div>
-<br />
-
-<div>
-    <label>Cours offert</label>
-    <select class="form-control" @bind="inscription.IdCoursOffert">
-        <option value="0">-- Sélectionner --</option>
-        @if (coursOfferts != null)
-        {
-            @foreach (var c in coursOfferts)
-            {
-                <option value="@c.IdCoursOffert">
-                    @(string.IsNullOrEmpty(c.NomCours) ? $"Cours #{c.IdCoursOffert}" : c.NomCours)
-                </option>
-            }
-        }
-    </select>
-</div>
-<br />
-
-<button class="btn btn-primary" @onclick="Create">Inscrire</button>
-<button class="btn btn-secondary" @onclick='() => Navigation.NavigateTo("/admin/inscriptions")'>Retour</button>
+<div class="mt-4">
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/admin/inscriptions")'>← Retour aux
+        inscriptions</button>
+    </div>
 
 @code {
     private InscriptionCreate inscription = new();
@@ -51,11 +70,20 @@
     private List<CoursOffertDto>? coursOfferts;
     private string message = "";
     private bool isError = false;
+    private bool loaded = false;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        eleves = await Http.GetFromJsonAsync<List<EleveDto>>("api/eleves");
-        coursOfferts = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
+        if (firstRender)
+        {
+            var t1 = Http.GetFromJsonAsync<List<EleveDto>>("api/eleves");
+            var t2 = Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert");
+            await Task.WhenAll(t1, t2);
+            eleves = t1.Result;
+            coursOfferts = t2.Result;
+            loaded = true;
+            StateHasChanged();
+        }
     }
 
     private async Task Create()
@@ -73,8 +101,6 @@
         var res = await Http.PostAsJsonAsync("api/inscriptions", inscription);
         if (res.IsSuccessStatusCode)
         {
-            message = "✅ Inscription créée avec succès.";
-            await Task.Delay(1000);
             Navigation.NavigateTo("/admin/inscriptions?created=true");
         }
         else
@@ -83,6 +109,14 @@
             isError = true;
         }
     }
+
+    static string GetModeLabel(string mode) => mode switch
+    {
+        "EnLigne" => "En ligne",
+        "Présentiel" => "Présentiel",
+        "Hybride" => "Hybride",
+        _ => mode
+    };
 
     public class InscriptionCreate
     {
@@ -101,6 +135,8 @@
     public class CoursOffertDto
     {
         public int IdCoursOffert { get; set; }
-        public string? NomCours { get; set; }
+        public string NomCours { get; set; } = "";
+        public string NomSession { get; set; } = "";
+        public string ModeEnseignement { get; set; } = "";
     }
 }
