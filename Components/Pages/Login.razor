@@ -15,7 +15,7 @@
         </div>
 
         <h1>Connexion</h1>
-        <p class="subtitle">Bienvenue sur la plateforme scolaire</p>
+        <p class="subtitle">Bienvenue sur la plateforme Skolaris</p>
 
         @if (!string.IsNullOrEmpty(errorMessage))
         {
@@ -29,15 +29,15 @@
 
             <div class="form-group">
                 <label>Courriel</label>
-                <InputText class="form-control" @bind-Value="loginModel.Email"
-                           placeholder="admin@gmail.com" disabled="@isLoading" />
+                <InputText class="form-control" @bind-Value="loginModel.Email" placeholder="admin@gmail.com"
+                           disabled="@isLoading" />
                 <ValidationMessage For="@(() => loginModel.Email)" />
             </div>
 
             <div class="form-group">
                 <label>Mot de passe</label>
-                <InputText type="password" class="form-control" @bind-Value="loginModel.Password"
-                           placeholder="123456" disabled="@isLoading" />
+                <InputText type="password" class="form-control" @bind-Value="loginModel.Password" placeholder="123456"
+                           disabled="@isLoading" />
                 <ValidationMessage For="@(() => loginModel.Password)" />
             </div>
 
@@ -54,10 +54,145 @@
         </EditForm>
 
         <a href="/forgot-password" class="forgot-link">Mot de passe oublié ?</a>
+
+        <div class="demo-section">
+            <div class="demo-label">
+                <span class="demo-line"></span>
+                <span class="demo-text">Accès démo</span>
+                <span class="demo-line"></span>
+            </div>
+            <p class="demo-hint">Connectez-vous en tant qu'administrateur, enseignant ou élève</p>
+            <div class="demo-buttons">
+                <button class="demo-btn demo-admin" @onclick='() => ConnecterEn("admin@gmail.com")'
+                        disabled="@isLoading">
+                    <span class="demo-icon">🛡️</span>
+                    <span class="demo-info">
+                        <span class="demo-role">Administrateur</span>
+                    </span>
+                </button>
+                <button class="demo-btn demo-enseignant" @onclick='() => ConnecterEn("enseignant@gmail.com")'
+                        disabled="@isLoading">
+                    <span class="demo-icon">📚</span>
+                    <span class="demo-info">
+                        <span class="demo-role">Enseignant</span>
+                    </span>
+                </button>
+                <button class="demo-btn demo-eleve" @onclick='() => ConnecterEn("eleve@gmail.com")'
+                        disabled="@isLoading">
+                    <span class="demo-icon">🎓</span>
+                    <span class="demo-info">
+                        <span class="demo-role">Élève</span>
+                    </span>
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
 <style>
+    .demo-section {
+        margin-top: 28px;
+    }
+
+    .demo-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .demo-line {
+        flex: 1;
+        height: 1px;
+        background: #e0e7ef;
+    }
+
+    .demo-text {
+        font-size: 12px;
+        font-weight: 600;
+        color: #90a4ae;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        white-space: nowrap;
+    }
+
+    .demo-hint {
+        text-align: center;
+        font-size: 12.5px;
+        color: #78909c;
+        margin-bottom: 14px;
+    }
+
+    .demo-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .demo-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        width: 100%;
+        padding: 11px 16px;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: inherit;
+        text-align: center;
+    }
+
+    .demo-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .demo-btn:not(:disabled):hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+    }
+
+    .demo-admin {
+        background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%);
+        color: #fff;
+    }
+
+    .demo-enseignant {
+        background: linear-gradient(135deg, #2e7d32 0%, #388e3c 100%);
+        color: #fff;
+    }
+
+    .demo-eleve {
+        background: linear-gradient(135deg, #6a1b9a 0%, #7b1fa2 100%);
+        color: #fff;
+    }
+
+    .demo-icon {
+        font-size: 22px;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+
+    .demo-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .demo-role {
+        font-size: 13.5px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+    }
+
+    .demo-email {
+        font-size: 11.5px;
+        opacity: 0.82;
+    }
+
     @@keyframes slideDown {
         from {
             opacity: 0;
@@ -133,6 +268,38 @@
             errorMessage = "Une erreur est survenue. Veuillez réessayer.";
             isLoading = false;
         }
+    }
+
+    private async Task ConnecterEn(string email)
+    {
+        errorMessage = "";
+        isLoading = true;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/login", new { Email = email, Password = "123456" });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = "Impossible de se connecter avec ce compte démo.";
+                isLoading = false;
+                return;
+            }
+
+            var user = await response.Content.ReadFromJsonAsync<UserResponse>();
+            if (user == null) { errorMessage = "Erreur de connexion."; isLoading = false; return; }
+
+            await JS.InvokeVoidAsync("localStorage.setItem", "role", user.Role);
+            await JS.InvokeVoidAsync("localStorage.setItem", "nom", user.Nom);
+            await JS.InvokeVoidAsync("localStorage.setItem", "userId", user.Id.ToString());
+
+            var role = user.Role.Trim().ToUpper();
+            if (role == "ADMIN") Navigation.NavigateTo("/dashboard-admin");
+            else if (role == "ENSEIGNANT") Navigation.NavigateTo("/dashboard-enseignant");
+            else if (role == "ELEVE") Navigation.NavigateTo("/dashboard-eleve");
+            else errorMessage = "Rôle inconnu.";
+        }
+        catch { errorMessage = "Erreur réseau."; isLoading = false; }
     }
 
     public class LoginModel

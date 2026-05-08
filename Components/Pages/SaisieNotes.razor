@@ -1,40 +1,79 @@
-@page "/enseignant/notes"
+﻿@page "/enseignant/notes"
 @rendermode InteractiveServer
 
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-<h2 class="sk-section-title">Saisie des notes</h2>
+<div class="sk-page-header">
+    <div>
+        <h2 class="sk-page-title">Saisie des notes</h2>
+        <p style="color:var(--sk-muted); margin:0; font-size:14px;">Sélectionnez un cours offert puis un élève pour gérer les notes.</p>
+    </div>
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-enseignant")'>
+        ← Tableau de bord
+    </button>
+</div>
 
-<p class="sk-welcome-sub" style="margin-top:-8px;">
-    Sélectionnez un cours offert et un élève pour saisir, modifier ou consulter les notes.
-</p>
+@if (!string.IsNullOrEmpty(alertMsg))
+{
+    <div class="sk-alert @(isError ? "sk-alert-danger" : "sk-alert-success")">@alertMsg</div>
+}
 
-<div class="sk-card" style="margin-top:16px;">
-    <div class="sk-form-row">
-        <div>
-            <label>ID Cours offert</label>
-            <input type="number" class="form-control" @bind="idCoursOffert" />
+<!-- Sélection cours offert + élève -->
+<div class="sk-card" style="margin-bottom:24px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:end;">
+        <div class="sk-form-group" style="margin-bottom:0;">
+            <label>Cours offert</label>
+            @if (coursOfferts == null)
+            {
+                <div class="sk-loading" style="padding:8px 0;">Chargement...</div>
+            }
+            else
+            {
+                <select class="sk-input" value="@selectedCoursOffertId" @onchange="OnCoursOffertChanged">
+                    <option value="0">— Choisir un cours —</option>
+                    @foreach (var co in coursOfferts)
+                    {
+                        <option value="@co.IdCoursOffert">@co.NomCours — @co.NomSession</option>
+                    }
+                </select>
+            }
         </div>
-        <div>
-            <label>ID Élève</label>
-            <input type="number" class="form-control" @bind="idEleve" />
-        </div>
-        <div style="align-self:flex-end;">
-            <button class="btn btn-primary" @onclick="Charger">Charger</button>
+
+        <div class="sk-form-group" style="margin-bottom:0;">
+            <label>Élève</label>
+            @if (loadingEleves)
+            {
+                <div class="sk-loading" style="padding:8px 0;">Chargement des élèves...</div>
+            }
+            else
+            {
+                <select class="sk-input" value="@selectedEleveId" @onchange="OnEleveChanged" disabled="@(selectedCoursOffertId == 0)">
+                    <option value="0">— Choisir un élève —</option>
+                    @foreach (var e in eleves)
+                    {
+                        <option value="@e.IdEleve">@e.Prenom @e.Nom (@e.Matricule)</option>
+                    }
+                </select>
+            }
         </div>
     </div>
 </div>
 
-@if (chargement)
+@if (loadingNotes)
 {
-    <div class="sk-loading">Chargement...</div>
+    <div class="sk-loading">Chargement des notes...</div>
 }
-else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
+else if (selectedEleveId > 0 && selectedCoursOffertId > 0)
 {
-    <div class="sk-section-title" style="margin-top:32px;">
-        Notes existantes — Élève #@idEleveCharge / Cours #@idCoursOffertCharge
-    </div>
+    @if (noteFinale.HasValue)
+    {
+        <div class="sk-note-finale-banner">
+            <span class="sk-note-finale-label">Note finale (moyenne pondérée)</span>
+            <span class="sk-note-finale-value @GetNoteClass(noteFinale.Value)">@noteFinale.Value.ToString("F2") / 100</span>
+        </div>
+    }
 
     @if (!notes.Any())
     {
@@ -42,7 +81,7 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
     }
     else
     {
-        <div class="sk-table-wrapper">
+        <div class="sk-table-wrapper" style="margin-bottom:24px;">
             <table class="sk-table">
                 <thead>
                     <tr>
@@ -50,7 +89,7 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                         <th>Type</th>
                         <th>Description</th>
                         <th>Pondération</th>
-                        <th>Note</th>
+                        <th>Note /100</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -60,11 +99,9 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                         <tr>
                             @if (editingId == n.IdNote)
                             {
+                                <td><input type="date" class="sk-input sk-input-sm" @bind="editDate" /></td>
                                 <td>
-                                    <input type="date" class="form-control" @bind="editDate" />
-                                </td>
-                                <td>
-                                    <select class="form-control" @bind="editType">
+                                    <select class="sk-input sk-input-sm" @bind="editType">
                                         <option>Examen</option>
                                         <option>Devoir</option>
                                         <option>TP</option>
@@ -72,24 +109,24 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                                         <option>Participation</option>
                                     </select>
                                 </td>
-                                <td><input class="form-control" @bind="editDescription" /></td>
-                                <td><input type="number" step="0.01" class="form-control" @bind="editPonderation" /></td>
-                                <td><input type="number" step="0.01" class="form-control" @bind="editValeur" /></td>
-                                <td>
-                                    <button class="btn btn-success btn-sm" @onclick="() => SaveEdit(n)">💾</button>
-                                    <button class="btn btn-secondary btn-sm" @onclick="CancelEdit">✖</button>
+                                <td><input class="sk-input sk-input-sm" @bind="editDescription" /></td>
+                                <td><input type="number" step="0.01" class="sk-input sk-input-sm" @bind="editPonderation" /></td>
+                                <td><input type="number" step="0.01" class="sk-input sk-input-sm" @bind="editValeur" /></td>
+                                <td class="sk-actions">
+                                    <button class="sk-btn sk-btn-sm sk-btn-primary" @onclick="() => SaveEdit(n)">💾 Enregistrer</button>
+                                    <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="CancelEdit">✕</button>
                                 </td>
                             }
                             else
                             {
-                                <td>@n.DateEvaluation.ToString("yyyy-MM-dd")</td>
-                                <td><span class="sk-badge sk-badge-info" style="font-size:11px;">@n.Type</span></td>
+                                <td>@n.DateEvaluation.ToString("dd MMM yyyy")</td>
+                                <td><span class="sk-badge sk-badge-mode">@n.Type</span></td>
                                 <td>@(string.IsNullOrEmpty(n.Description) ? "—" : n.Description)</td>
-                                <td>@n.Ponderation.ToString("F2")%</td>
-                                <td><span class="sk-note @GetNoteClass(n.Valeur)">@n.Valeur.ToString("F2")</span></td>
-                                <td>
-                                    <button class="btn btn-primary btn-sm" @onclick="() => StartEdit(n)">✏️</button>
-                                    <button class="btn btn-danger btn-sm" @onclick="() => Delete(n.IdNote)">🗑️</button>
+                                <td>@n.Ponderation.ToString("F1")%</td>
+                                <td><span class="sk-note-chip @GetNoteClass(n.Valeur)">@n.Valeur.ToString("F2")</span></td>
+                                <td class="sk-actions">
+                                    <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="() => StartEdit(n)">✏️ Modifier</button>
+                                    <button class="sk-btn sk-btn-sm sk-btn-danger" @onclick="() => Delete(n.IdNote)">🗑️</button>
                                 </td>
                             }
                         </tr>
@@ -97,24 +134,14 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                 </tbody>
             </table>
         </div>
-
-        @if (noteFinale.HasValue)
-        {
-            <div class="sk-stat-card sk-stat-card-accent" style="margin-top:16px; max-width:300px;">
-                <div class="sk-stat-icon">🎯</div>
-                <div class="sk-stat-value">@noteFinale.Value.ToString("F2")</div>
-                <div class="sk-stat-label">Note finale (moyenne pondérée)</div>
-            </div>
-        }
     }
 
-    <div class="sk-section-title" style="margin-top:32px;">Ajouter une nouvelle note</div>
-
-    <div class="sk-card">
-        <div class="sk-form-row">
-            <div>
+    <div class="sk-add-note-card">
+        <h4 style="margin:0 0 16px 0; font-size:15px; font-weight:700; color:var(--sk-text);">➕ Ajouter une note</h4>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:12px; align-items:end;">
+            <div class="sk-form-group" style="margin-bottom:0;">
                 <label>Type</label>
-                <select class="form-control" @bind="newNote.Type">
+                <select class="sk-input" @bind="newNote.Type">
                     <option>Examen</option>
                     <option>Devoir</option>
                     <option>TP</option>
@@ -122,52 +149,108 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
                     <option>Participation</option>
                 </select>
             </div>
-            <div>
+            <div class="sk-form-group" style="margin-bottom:0;">
                 <label>Description</label>
-                <input class="form-control" @bind="newNote.Description" placeholder="ex. Mi-session" />
+                <input class="sk-input" @bind="newNote.Description" placeholder="ex. Mi-session" />
             </div>
-            <div>
+            <div class="sk-form-group" style="margin-bottom:0;">
                 <label>Date</label>
-                <input type="date" class="form-control" @bind="newNote.DateEvaluation" />
+                <input type="date" class="sk-input" @bind="newNote.DateEvaluation" />
             </div>
-            <div>
+            <div class="sk-form-group" style="margin-bottom:0;">
                 <label>Pondération (%)</label>
-                <input type="number" step="0.01" class="form-control" @bind="newNote.Ponderation" />
+                <input type="number" step="0.01" min="0" max="100" class="sk-input" @bind="newNote.Ponderation" />
+            </div>
+            <div class="sk-form-group" style="margin-bottom:0;">
+                <label>Note (/100)</label>
+                <input type="number" step="0.01" min="0" max="100" class="sk-input" @bind="newNote.Valeur" />
             </div>
             <div>
-                <label>Note (/100)</label>
-                <input type="number" step="0.01" class="form-control" @bind="newNote.Valeur" />
-            </div>
-            <div style="align-self:flex-end;">
-                <button class="btn btn-success" @onclick="Ajouter">➕ Ajouter</button>
+                <button class="sk-btn sk-btn-primary" style="width:100%;" @onclick="Ajouter">Ajouter</button>
             </div>
         </div>
     </div>
 }
-
-@if (!string.IsNullOrEmpty(message))
+else if (selectedCoursOffertId == 0)
 {
-    <div class="alert alert-info mt-3">@message</div>
+    <div class="sk-empty">Choisissez un cours offert pour commencer.</div>
+}
+else if (selectedEleveId == 0 && eleves.Any())
+{
+    <div class="sk-empty">Choisissez un élève pour voir et saisir ses notes.</div>
+}
+else if (!eleves.Any() && selectedCoursOffertId > 0 && !loadingEleves)
+{
+    <div class="sk-empty">Aucun élève inscrit à ce cours offert.</div>
 }
 
-<div class="mt-4">
-    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-enseignant")'>
-        ← Retour au tableau de bord
-    </button>
-</div>
+<style>
+    .sk-input-sm {
+        padding: 4px 8px;
+        font-size: 13px;
+        min-width: 80px;
+    }
+
+    .sk-note-finale-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
+        border: 1px solid #a5d6a7;
+        border-radius: 12px;
+        padding: 14px 20px;
+        margin-bottom: 20px;
+    }
+
+    .sk-note-finale-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: #2e7d32;
+    }
+
+    .sk-note-finale-value {
+        font-size: 22px;
+        font-weight: 800;
+        border-radius: 8px;
+        padding: 4px 14px;
+    }
+
+    .sk-note-chip {
+        display: inline-block;
+        font-weight: 700;
+        font-size: 13px;
+        padding: 3px 10px;
+        border-radius: 20px;
+    }
+
+    .note-excellent { background: #e8f5e9; color: #2e7d32; }
+    .note-bien      { background: #e3f2fd; color: #1565c0; }
+    .note-moyen     { background: #fff3e0; color: #e65100; }
+    .note-faible    { background: #ffebee; color: #c62828; }
+
+    .sk-add-note-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 20px;
+    }
+</style>
 
 @code {
-    private int idCoursOffert;
-    private int idEleve;
-    private int idCoursOffertCharge;
-    private int idEleveCharge;
-    private bool chargement = false;
-    private string message = "";
-
+    private List<CoursOffertDto>? coursOfferts;
+    private List<EleveDto> eleves = new();
     private List<NoteDto> notes = new();
     private decimal? noteFinale;
 
-    private NoteCreate newNote = new();
+    private int selectedCoursOffertId = 0;
+    private int selectedEleveId = 0;
+
+    private bool loadingEleves = false;
+    private bool loadingNotes = false;
+    private string alertMsg = "";
+    private bool isError = false;
+
+    private NoteCreate newNote = new() { DateEvaluation = DateTime.Today, Type = "Examen" };
 
     private int? editingId;
     private string editType = "Examen";
@@ -176,42 +259,87 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
     private decimal editPonderation;
     private decimal editValeur;
 
-    private async Task Charger()
+    private int enseignantId = 0;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (idCoursOffert <= 0 || idEleve <= 0)
+        if (firstRender)
         {
-            message = "Veuillez fournir un ID élève et un ID cours offert valides.";
-            return;
-        }
-
-        chargement = true;
-        message = "";
-
-        try
-        {
-            notes = await Http.GetFromJsonAsync<List<NoteDto>>(
-                $"api/notes/eleve/{idEleve}/cours/{idCoursOffert}") ?? new();
-
             try
             {
-                var resp = await Http.GetFromJsonAsync<NoteFinaleResponse>(
-                    $"api/notes/eleve/{idEleve}/cours/{idCoursOffert}/finale");
-                noteFinale = resp?.NoteFinale;
+                var userIdStr = await JS.InvokeAsync<string>("localStorage.getItem", "userId");
+                if (int.TryParse(userIdStr, out var uid))
+                    enseignantId = uid;
+
+                var tous = await Http.GetFromJsonAsync<List<CoursOffertDto>>("api/CoursOffert") ?? new();
+                coursOfferts = enseignantId > 0
+                    ? tous.Where(co => co.IdUtilisateurEnseignant == enseignantId).ToList()
+                    : tous;
+            }
+            catch (Exception ex)
+            {
+                alertMsg = $"Erreur de chargement des cours : {ex.Message}";
+                isError = true;
+                coursOfferts = new();
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnCoursOffertChanged(ChangeEventArgs e)
+    {
+        selectedCoursOffertId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        selectedEleveId = 0;
+        eleves = new();
+        notes = new();
+        noteFinale = null;
+        alertMsg = "";
+
+        if (selectedCoursOffertId > 0)
+        {
+            loadingEleves = true;
+            try
+            {
+                eleves = await Http.GetFromJsonAsync<List<EleveDto>>($"api/eleves/cours/{selectedCoursOffertId}") ?? new();
             }
             catch
             {
-                noteFinale = null;
+                alertMsg = "Erreur lors du chargement des élèves.";
+                isError = true;
+                eleves = new();
             }
-
-            idCoursOffertCharge = idCoursOffert;
-            idEleveCharge = idEleve;
+            loadingEleves = false;
         }
-        catch (Exception ex)
+    }
+
+    private async Task OnEleveChanged(ChangeEventArgs e)
+    {
+        selectedEleveId = int.TryParse(e.Value?.ToString(), out var v) ? v : 0;
+        notes = new();
+        noteFinale = null;
+        alertMsg = "";
+
+        if (selectedEleveId > 0)
+            await ChargerNotes();
+    }
+
+    private async Task ChargerNotes()
+    {
+        loadingNotes = true;
+        try
         {
-            message = $"Erreur de chargement : {ex.Message}";
+            notes = await Http.GetFromJsonAsync<List<NoteDto>>(
+                $"api/notes/eleve/{selectedEleveId}/cours/{selectedCoursOffertId}") ?? new();
+            try
+            {
+                var resp = await Http.GetFromJsonAsync<NoteFinaleResponse>(
+                    $"api/notes/eleve/{selectedEleveId}/cours/{selectedCoursOffertId}/finale");
+                noteFinale = resp?.NoteFinale;
+            }
+            catch { noteFinale = null; }
         }
-
-        chargement = false;
+        catch { alertMsg = "Erreur de chargement des notes."; isError = true; }
+        loadingNotes = false;
     }
 
     private async Task Ajouter()
@@ -223,20 +351,22 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
             description = newNote.Description,
             ponderation = newNote.Ponderation,
             dateEvaluation = newNote.DateEvaluation == default ? DateTime.UtcNow : newNote.DateEvaluation,
-            idEleve = idEleveCharge,
-            idCoursOffert = idCoursOffertCharge
+            idEleve = selectedEleveId,
+            idCoursOffert = selectedCoursOffertId
         };
 
         var res = await Http.PostAsJsonAsync("api/notes", payload);
         if (res.IsSuccessStatusCode)
         {
-            message = "Note ajoutée.";
-            newNote = new();
-            await Charger();
+            alertMsg = "Note ajoutée avec succès.";
+            isError = false;
+            newNote = new() { DateEvaluation = DateTime.Today, Type = "Examen" };
+            await ChargerNotes();
         }
         else
         {
-            message = $"Erreur : {await res.Content.ReadAsStringAsync()}";
+            alertMsg = $"Erreur : {await res.Content.ReadAsStringAsync()}";
+            isError = true;
         }
     }
 
@@ -268,13 +398,15 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
         var res = await Http.PutAsJsonAsync($"api/notes/{n.IdNote}", payload);
         if (res.IsSuccessStatusCode)
         {
-            message = "Note mise à jour.";
+            alertMsg = "Note mise à jour.";
+            isError = false;
             editingId = null;
-            await Charger();
+            await ChargerNotes();
         }
         else
         {
-            message = $"Erreur : {await res.Content.ReadAsStringAsync()}";
+            alertMsg = $"Erreur : {await res.Content.ReadAsStringAsync()}";
+            isError = true;
         }
     }
 
@@ -283,13 +415,11 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
         var res = await Http.DeleteAsync($"api/notes/{id}");
         if (res.IsSuccessStatusCode)
         {
-            message = "Note supprimée.";
-            await Charger();
+            alertMsg = "Note supprimée.";
+            isError = false;
+            await ChargerNotes();
         }
-        else
-        {
-            message = $"Erreur : {await res.Content.ReadAsStringAsync()}";
-        }
+        else { alertMsg = "Erreur lors de la suppression."; isError = true; }
     }
 
     private string GetNoteClass(decimal v)
@@ -297,7 +427,24 @@ else if (idEleveCharge != 0 && idCoursOffertCharge != 0)
         if (v >= 90) return "note-excellent";
         if (v >= 75) return "note-bien";
         if (v >= 60) return "note-moyen";
-        return "note-autre";
+        return "note-faible";
+    }
+
+    public class CoursOffertDto
+    {
+        public int IdCoursOffert { get; set; }
+        public int? IdEnseignant { get; set; }
+        public int? IdUtilisateurEnseignant { get; set; }
+        public string NomCours { get; set; } = "";
+        public string NomSession { get; set; } = "";
+    }
+
+    public class EleveDto
+    {
+        public int IdEleve { get; set; }
+        public string Matricule { get; set; } = "";
+        public string Nom { get; set; } = "";
+        public string Prenom { get; set; } = "";
     }
 
     public class NoteDto
