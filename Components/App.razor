@@ -17,6 +17,16 @@
 <body>
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
+    <script>
+        function scrollToBottom(elementId) {
+        var el = document.getElementById(elementId);
+        if (el) el.scrollTop = el.scrollHeight;
+        }
+        function triggerFileInput(elementId) {
+        var el = document.getElementById(elementId);
+        if (el) el.click();
+        }
+    </script>
 </body>
 
 </html>
