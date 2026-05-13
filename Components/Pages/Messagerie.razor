@@ -1,0 +1,857 @@
+@page "/messagerie"
+@rendermode InteractiveServer
+@implements IDisposable
+@using System.IO
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="sk-page-header">
+    <div>
+        <h2 class="sk-page-title">💬 Messagerie</h2>
+        <p style="color:var(--grey-500);margin:0;font-size:14px;">Conversations privées et de groupe</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+        @if (role == "ADMIN")
+        {
+            <button class="sk-btn sk-btn-warning" @onclick="OuvrirAnnonceModal">📢 Annonce</button>
+        }
+        @if (role == "ENSEIGNANT")
+        {
+            <button class="sk-btn sk-btn-outline" @onclick="OuvrirNouvelleConversation">✉ Message privé</button>
+            <button class="sk-btn sk-btn-primary" @onclick="OuvrirMessageGroupe">👥 Message au groupe</button>
+        }
+        else
+        {
+            <button class="sk-btn sk-btn-primary" @onclick="OuvrirNouvelleConversation">+ Nouvelle conversation</button>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(alertMsg))
+{
+    <div class="sk-alert @(isError ? "sk-alert-danger" : "sk-alert-success")" style="margin-bottom:16px;">@alertMsg</div>
+}
+
+<div class="sk-chat-layout">
+    <!-- ─── PANNEAU GAUCHE: liste des conversations ─── -->
+    <div class="sk-chat-sidebar">
+        <div class="sk-chat-search">
+            <input class="sk-input" placeholder="Rechercher..." @bind="searchTerm" @bind:event="oninput" />
+        </div>
+
+        @if (conversations == null)
+        {
+            <div class="sk-loading">Chargement...</div>
+        }
+        else if (!conversations.Any())
+        {
+            <div class="sk-empty" style="margin:16px;">Aucune conversation</div>
+        }
+        else
+        {
+            @foreach (var conv in ConversationsFiltrees)
+            {
+                <div class="sk-chat-conv-item @(selectedConvId == conv.IdConversation ? "sk-chat-conv-active" : "")"
+                     @onclick="() => SelectConversation(conv.IdConversation)">
+                    <div class="sk-chat-conv-avatar">
+                        @if (conv.EstAnnonce)
+                        {
+                            <span>📢</span>
+                        }
+                        else if (conv.Type == "Groupe")
+                        {
+
+                            <span>👥</span>
+                        }
+                        else
+                        {
+
+                            <span>💬</span>
+                        }
+                    </div>
+                    <div class="sk-chat-conv-info">
+                        <div class="sk-chat-conv-name">@conv.Sujet</div>
+                        <div class="sk-chat-conv-preview">@(conv.DernierMessage?.Length > 40 ? conv.DernierMessage.Substring(0,
+                                                                                                                                                                                                                                                                                                                                                                                                                            40) + "…" : conv.DernierMessage ?? "Pas encore de message")</div>
+                        </div>
+                        @if (conv.NombreNonLus > 0)
+                        {
+                            <div class="sk-chat-badge">@conv.NombreNonLus</div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- ─── PANNEAU DROIT: messages ─── -->
+        <div class="sk-chat-main">
+            @if (selectedConvId == 0)
+            {
+                <div class="sk-chat-empty-state">
+                    <div style="font-size:56px;">💬</div>
+                    <p>Sélectionnez une conversation ou créez-en une nouvelle</p>
+                </div>
+            }
+            else
+            {
+                <div class="sk-chat-header">
+                    <strong>@selectedConvSujet</strong>
+                    <div class="sk-chat-header-actions">
+                        @if (selectedConvParticipants.Any())
+                        {
+                            <span style="font-size:12px;color:var(--grey-500);">
+                                @string.Join(", ", selectedConvParticipants.Where(p => p.IdUtilisateur != currentUserId).Select(p =>
+                        p.Nom))
+                            </span>
+                        }
+                    </div>
+                </div>
+
+                <div class="sk-chat-messages" id="msgContainer">
+                    @if (messages == null)
+                    {
+                        <div class="sk-loading">Chargement des messages...</div>
+                    }
+                    else if (!messages.Any())
+                    {
+                        <div class="sk-empty" style="margin:24px auto;">Démarrez la conversation</div>
+                    }
+                    else
+                    {
+                        @foreach (var msg in messages)
+                        {
+                            bool isMine = msg.IdExpediteur == currentUserId;
+                            <div class="sk-msg-row @(isMine ? "sk-msg-row-mine" : "")">
+                                <div class="sk-msg-bubble @(isMine ? "sk-msg-bubble-mine" : "")">
+                                    @if (!isMine)
+                                    {
+                                        <div class="sk-msg-sender">@msg.NomExpediteur</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(msg.Contenu))
+                                    {
+                                        <div class="sk-msg-text">@msg.Contenu</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(msg.PieceJointeNom))
+                                    {
+                                        <div class="sk-msg-attachment">
+                                            <a href="@($"http://localhost:5043{msg.PieceJointePath}")" target="_blank"
+                                                   class="sk-msg-attachment-link" download>
+                                                📎 @msg.PieceJointeNom
+                                            </a>
+                                        </div>
+                                    }
+                                    <div
+                                        style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:4px;flex-wrap:wrap;">
+                                        <span class="sk-msg-time">@msg.DateEnvoi.ToLocalTime().ToString("HH:mm")</span>
+                                        @if (msg.EstSignale)
+                                        {
+                                            <span
+                                                style="font-size:11px;color:var(--orange-500);font-weight:600;background:var(--orange-50,#fff3e0);padding:1px 6px;border-radius:8px;">⚑
+                                                Signalé</span>
+                                            }
+                                        else if (!isMine)
+                                            {
+                                                <button
+                                                    style="font-size:11px;padding:2px 8px;background:transparent;border:1px solid var(--grey-300);border-radius:8px;color:var(--grey-500);cursor:pointer;transition:all .15s;"
+                                                    @onclick="() => SignalerMessage(msg.IdMessage)"
+                                                    title="Signaler ce message comme inapproprié">
+                                                    ⚑ Signaler
+                                                </button>
+                                            }
+                                            @if (!isMine)
+                                            {
+                                                <button
+                                                    style="font-size:11px;padding:2px 8px;background:transparent;border:1px solid var(--grey-300);border-radius:8px;color:var(--grey-500);cursor:pointer;transition:all .15s;"
+                                                    @onclick="() => BasculerLu(msg.IdMessage, msg.EstLu)"
+                                                    title="@(msg.EstLu ? "Marquer comme non lu" : "Marquer comme lu")">
+                                                    @(msg.EstLu ? "✉ Non lu" : "✓ Lu")
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    <!-- Zone de saisie -->
+                    <div class="sk-chat-input-area">
+                        @if (!string.IsNullOrEmpty(attachedFileName))
+                        {
+                            <div class="sk-chat-attachment-preview">
+                                📎 @attachedFileName
+                                <button @onclick="RetirerFichier" class="sk-msg-flag-btn" style="margin-left:8px;">✕</button>
+                            </div>
+                        }
+                        <div class="sk-chat-input-row">
+                            <InputFile OnChange="OnFileSelected" id="fileInput" style="display:none;" accept="image/*,.pdf" />
+                            <button class="sk-btn sk-btn-outline sk-btn-sm" @onclick="ClicFichier"
+                                    title="Joindre un fichier">📎</button>
+                            <textarea class="sk-chat-textarea" placeholder="Écrire un message..." @bind="newMessage"
+                                      @onkeydown="OnKeyDown" rows="1"></textarea>
+                            <button class="sk-btn sk-btn-primary sk-btn-sm" @onclick="EnvoyerMessage" disabled="@sending">
+                                @(sending ? "…" : "Envoyer")
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- ─── Modal: nouvelle conversation ─── -->
+        @if (showNewConvModal)
+        {
+            <div class="sk-modal-overlay" @onclick="FermerModal">
+                <div class="sk-modal" @onclick:stopPropagation>
+                    <div class="sk-modal-header">
+                        <h3>Nouvelle conversation</h3>
+                        <button class="sk-modal-close" @onclick="FermerModal">✕</button>
+                    </div>
+                    <div class="sk-modal-body">
+                        <div class="sk-form-group">
+                            <label>Sujet</label>
+                            <input class="sk-input" @bind="newConvSujet" placeholder="Sujet de la conversation..." />
+                        </div>
+                        <div class="sk-form-group">
+                            <label>Type (détecté automatiquement)</label>
+                            <div style="padding:6px 0;">
+                                @if (selectedUserIds.Count > 1)
+                                {
+                                    <span class="sk-badge sk-badge-info">👥 Groupe (@selectedUserIds.Count destinataires)</span>
+                                }
+                                else
+                                {
+                                    <span class="sk-badge sk-badge-accent">💬 Conversation privée</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="sk-form-group">
+                            <label>Destinataires</label>
+                            @if (allUsers == null)
+                            {
+                                <div class="sk-loading" style="padding:8px 0;">Chargement...</div>
+                            }
+                            else
+                            {
+                                @* Chips des sélectionnés *@
+                                @if (selectedUserIds.Any())
+                                {
+                                    <div class="sk-user-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                                        @foreach (var uid in selectedUserIds.ToList())
+                                        {
+                                            var u = allUsers.FirstOrDefault(x => x.IdUtilisateur == uid);
+                                            if (u != null)
+                                            {
+                                                <span class="sk-user-chip">
+                                                    @u.Nom
+                                                    <button type="button" class="sk-user-chip-remove"
+                                                            @onclick="() => ToggleUser(uid, false)">✕</button>
+                                                </span>
+                                            }
+                                        }
+                                    </div>
+                                }
+                                @* Filtre par rôle + recherche *@
+                                <div style="display:flex;gap:6px;margin-bottom:6px;">
+                                    <button class="sk-btn sk-btn-sm @(userRoleFilter == "" ? "sk-btn-primary" : "sk-btn-outline")"
+                                            @onclick='() => userRoleFilter = ""'>Tous</button>
+                                    <button class="sk-btn sk-btn-sm @(userRoleFilter == "ELEVE" ? "sk-btn-primary" : "sk-btn-outline")"
+                                            @onclick='() => userRoleFilter = "ELEVE"'>Élèves</button>
+                                    <button
+                                    class="sk-btn sk-btn-sm @(userRoleFilter == "ENSEIGNANT" ? "sk-btn-primary" : "sk-btn-outline")"
+                                    @onclick='() => userRoleFilter = "ENSEIGNANT"'>Profs</button>
+                                </div>
+                                <input class="sk-input" placeholder="🔍 Rechercher..." @bind="userSearch" @bind:event="oninput"
+                                       style="margin-bottom:6px;" />
+                                @* Liste filtrée (non-sélectionnés) *@
+                                <div class="sk-user-select-list">
+                                    @{
+                                        var usersFiltered = allUsers
+                                            .Where(u => !selectedUserIds.Contains(u.IdUtilisateur))
+                                            .Where(u => string.IsNullOrWhiteSpace(userRoleFilter) || u.Role.Equals(userRoleFilter,
+                        StringComparison.OrdinalIgnoreCase))
+                                            .Where(u => string.IsNullOrWhiteSpace(userSearch) || u.Nom.Contains(userSearch,
+                        StringComparison.OrdinalIgnoreCase))
+                                            .ToList();
+                                    }
+                                    @if (!usersFiltered.Any())
+                                    {
+                                        <div style="padding:8px;color:var(--grey-400);font-size:13px;">Aucun résultat</div>
+                                    }
+                                    @foreach (var u in usersFiltered)
+                                    {
+                                        <div class="sk-user-select-item" @onclick="() => ToggleUser(u.IdUtilisateur, true)"
+                                             style="cursor:pointer;">
+                                            <span class="sk-user-select-name">@u.Nom</span>
+                                            <span class="sk-user-select-role">@u.Role</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+
+                    </div>
+                    <div class="sk-modal-footer">
+                        <button class="sk-btn sk-btn-outline" @onclick="FermerModal">Annuler</button>
+                        <button class="sk-btn sk-btn-primary" @onclick="CreerConversation"
+                                disabled="@(!selectedUserIds.Any() || string.IsNullOrWhiteSpace(newConvSujet))">
+                            Créer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ─── Modal: annonce admin ─── *@
+        @if (showAnnonceModal)
+        {
+            <div class="sk-modal-overlay" @onclick="FermerAnnonceModal">
+                <div class="sk-modal" @onclick:stopPropagation>
+                    <div class="sk-modal-header">
+                        <h3>📢 Envoyer une annonce</h3>
+                        <button class="sk-modal-close" @onclick="FermerAnnonceModal">✕</button>
+                    </div>
+                    <div class="sk-modal-body">
+                        <div class="sk-form-group">
+                            <label>Destinataires</label>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+                                <button class="sk-btn sk-btn-sm @(annonceCible == "TOUS" ? "sk-btn-primary" : "sk-btn-outline")"
+                                        @onclick='() => annonceCible = "TOUS"'>🌐 Tous</button>
+                                <button
+                                class="sk-btn sk-btn-sm @(annonceCible == "ENSEIGNANTS" ? "sk-btn-primary" : "sk-btn-outline")"
+                                @onclick='() => annonceCible = "ENSEIGNANTS"'>👨‍🏫 Enseignants</button>
+                                <button class="sk-btn sk-btn-sm @(annonceCible == "ELEVES" ? "sk-btn-primary" : "sk-btn-outline")"
+                                        @onclick='() => annonceCible = "ELEVES"'>🎓 Élèves</button>
+                            </div>
+                        </div>
+                        <div class="sk-form-group">
+                            <label>Sujet</label>
+                            <input class="sk-input" @bind="annonceSujet" placeholder="Sujet de l'annonce..." />
+                        </div>
+                        <div class="sk-form-group">
+                            <label>Message</label>
+                            <textarea class="sk-input" @bind="annonceMessage" rows="4"
+                                      placeholder="Votre message d'annonce..."></textarea>
+                        </div>
+                    </div>
+                    <div class="sk-modal-footer">
+                        <button class="sk-btn sk-btn-outline" @onclick="FermerAnnonceModal">Annuler</button>
+                        <button class="sk-btn sk-btn-warning" @onclick="EnvoyerAnnonceAdmin"
+                                disabled="@(string.IsNullOrWhiteSpace(annonceSujet) || string.IsNullOrWhiteSpace(annonceMessage))">
+                            📢 Envoyer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ─── Modal: message au groupe (ENSEIGNANT) ─── *@
+        @if (showGroupeEnseignantModal)
+        {
+            <div class="sk-modal-overlay" @onclick="FermerGroupeModal">
+                <div class="sk-modal" @onclick:stopPropagation>
+                    <div class="sk-modal-header">
+                        <h3>👥 Message au groupe d'élèves</h3>
+                        <button class="sk-modal-close" @onclick="FermerGroupeModal">✕</button>
+                    </div>
+                    <div class="sk-modal-body">
+                        <div class="sk-form-group">
+                            <label>Groupe</label>
+                            <select class="sk-input" @bind="selectedGroupeId">
+                                <option value="0">— Choisir un groupe —</option>
+                                @if (groupes != null)
+                                {
+                                    @foreach (var g in groupes)
+                                    {
+                                        <option value="@g.IdGroupe">@g.Nom</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="sk-form-group">
+                            <label>Message</label>
+                            <textarea class="sk-input" @bind="groupeMessage" rows="4"
+                                      placeholder="Votre message pour le groupe..."></textarea>
+                        </div>
+                    </div>
+                    <div class="sk-modal-footer">
+                        <button class="sk-btn sk-btn-outline" @onclick="FermerGroupeModal">Annuler</button>
+                        <button class="sk-btn sk-btn-primary" @onclick="EnvoyerAuGroupe"
+                                disabled="@(selectedGroupeId == 0 || string.IsNullOrWhiteSpace(groupeMessage))">
+                            👥 Envoyer au groupe
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+@code {
+    private int currentUserId;
+    private string role = "";
+
+    private List<ConversationSummaryDto>? conversations;
+    private List<MessageDto>? messages;
+    private int selectedConvId = 0;
+    private string selectedConvSujet = "";
+    private List<ParticipantDto> selectedConvParticipants = new();
+
+    private string newMessage = "";
+    private bool sending = false;
+    private string searchTerm = "";
+
+    private string alertMsg = "";
+    private bool isError = false;
+
+    // Nouvelle conversation
+    private bool showNewConvModal = false;
+    private List<UtilisateurSimpleDto>? allUsers;
+    private List<GroupeSimpleDto>? groupes;
+    private string newConvSujet = "";
+    private string newConvType = "Individuelle"; // calculé automatiquement
+    private HashSet<int> selectedUserIds = new();
+    private int selectedGroupeId = 0;
+    private string groupeMessage = "";
+    private string annonceMessage = "";
+    private string userSearch = "";
+    private string userRoleFilter = ""; // "" = tous, "ELEVE", "ENSEIGNANT"
+
+    // Annonce admin
+    private bool showAnnonceModal = false;
+    private string annonceSujet = "";
+    private string annonceCible = "TOUS";
+
+    // Modal groupe enseignant
+    private bool showGroupeEnseignantModal = false;
+
+    // Pièce jointe
+    private IBrowserFile? attachedFile;
+    private string attachedFileName = "";
+    private string uploadedPath = "";
+
+    // Polling auto-refresh
+    private System.Threading.Timer? _pollingTimer;
+    private int _lastMessageCount = 0;
+
+    private IEnumerable<ConversationSummaryDto> ConversationsFiltrees =>
+        string.IsNullOrWhiteSpace(searchTerm)
+            ? conversations ?? Enumerable.Empty<ConversationSummaryDto>()
+            : (conversations ?? Enumerable.Empty<ConversationSummaryDto>())
+                .Where(c => c.Sujet.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var uid = await JS.InvokeAsync<string>("localStorage.getItem", "userId");
+            role = await JS.InvokeAsync<string>("localStorage.getItem", "role") ?? "";
+            if (!int.TryParse(uid, out currentUserId)) { Navigation.NavigateTo("/login"); return; }
+            await ChargerConversations();
+            StateHasChanged();
+
+            // Démarrer le polling auto-refresh toutes les 3 secondes
+            _pollingTimer = new System.Threading.Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    // Ne pas rafraîchir pendant un envoi ou si un fichier est sélectionné
+                    if (sending || attachedFile != null || currentUserId == 0) return;
+
+                    try
+                    {
+                        await ChargerConversations();
+                        if (selectedConvId > 0)
+                        {
+                            var result = await Http.GetFromJsonAsync<List<MessageDto>>(
+                                $"api/messagerie/conversations/{selectedConvId}/messages/{currentUserId}");
+                            if (result != null && result.Count != _lastMessageCount)
+                            {
+                                _lastMessageCount = result.Count;
+                                messages = result;
+                                StateHasChanged();
+                                await JS.InvokeVoidAsync("scrollToBottom", "msgContainer");
+                            }
+                            else
+                            {
+                                StateHasChanged();
+                            }
+                        }
+                        else
+                        {
+                            StateHasChanged();
+                        }
+                    }
+                    catch { /* ignorer les erreurs réseau temporaires */ }
+                });
+            }, null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+
+            // Première tick après 3 secondes, puis toutes les 3 secondes
+            _pollingTimer.Change(3000, 3000);
+        }
+    }
+
+    public void Dispose()
+    {
+        _pollingTimer?.Dispose();
+    }
+
+    private async Task ChargerConversations()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<ConversationSummaryDto>>($"api/messagerie/conversations/{currentUserId}");
+            conversations = result ?? new List<ConversationSummaryDto>();
+        }
+        catch { /* ignorer les erreurs réseau temporaires */ }
+    }
+
+    private async Task SelectConversation(int convId)
+    {
+        selectedConvId = convId;
+        var conv = conversations?.FirstOrDefault(c => c.IdConversation == convId);
+        selectedConvSujet = conv?.Sujet ?? "";
+        selectedConvParticipants = conv?.Participants ?? new();
+        messages = null;
+        _lastMessageCount = 0;
+        StateHasChanged();
+
+        var result = await
+Http.GetFromJsonAsync<List<MessageDto>>($"api/messagerie/conversations/{convId}/messages/{currentUserId}");
+        messages = result ?? new List<MessageDto>();
+        _lastMessageCount = messages.Count;
+        if (conv != null) conv.NombreNonLus = 0;
+        StateHasChanged();
+        await JS.InvokeVoidAsync("scrollToBottom", "msgContainer");
+    }
+
+    private async Task EnvoyerMessage()
+    {
+        if (string.IsNullOrWhiteSpace(newMessage) && string.IsNullOrWhiteSpace(attachedFileName)) return;
+        sending = true;
+
+        // Upload fichier si présent
+        // En Blazor Server, OpenReadStream() passe par SignalR → deadlock si utilisé directement
+        // dans HttpClient. Solution : copier d'abord en MemoryStream, puis envoyer via HTTP.
+        if (attachedFile != null)
+        {
+            using var memStream = new System.IO.MemoryStream();
+            await using var browserStream = attachedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            await browserStream.CopyToAsync(memStream);
+            memStream.Position = 0;
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new StreamContent(memStream), "file", attachedFile.Name);
+            content.Add(new StringContent(currentUserId.ToString()), "userId");
+            var upResp = await Http.PostAsync("api/messagerie/upload", content);
+            if (upResp.IsSuccessStatusCode)
+            {
+                var upResult = await upResp.Content.ReadFromJsonAsync<UploadResult>();
+                uploadedPath = upResult?.Path ?? "";
+                attachedFileName = upResult?.Nom ?? "";
+            }
+            else
+            {
+                alertMsg = "Erreur lors de l'envoi du fichier."; isError = true;
+                sending = false;
+                return;
+            }
+        }
+
+        var req = new
+        {
+            ConversationId = selectedConvId,
+            SenderId = currentUserId,
+            Contenu = newMessage,
+            PieceJointePath = uploadedPath,
+            PieceJointeNom = attachedFileName
+        };
+        var resp = await Http.PostAsJsonAsync("api/messagerie/messages", req);
+        if (resp.IsSuccessStatusCode)
+        {
+            newMessage = "";
+            attachedFile = null;
+            attachedFileName = "";
+            uploadedPath = "";
+            await SelectConversation(selectedConvId);
+            await ChargerConversations();
+        }
+        sending = false;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+            await EnvoyerMessage();
+    }
+
+    private void ClicFichier()
+    {
+        JS.InvokeVoidAsync("triggerFileInput", "fileInput");
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var allowed = new[] { ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp" };
+        var ext = Path.GetExtension(e.File.Name).ToLowerInvariant();
+        if (!allowed.Contains(ext))
+        {
+            alertMsg = "Seuls les fichiers image (PNG, JPG, GIF, WEBP) et PDF sont acceptés.";
+            isError = true;
+            attachedFile = null;
+            attachedFileName = "";
+            return;
+        }
+        if (e.File.Size > 10 * 1024 * 1024)
+        {
+            alertMsg = "Le fichier dépasse la taille maximale de 10 Mo.";
+            isError = true;
+            attachedFile = null;
+            attachedFileName = "";
+            return;
+        }
+        alertMsg = "";
+        attachedFile = e.File;
+        attachedFileName = e.File.Name;
+    }
+
+    private void RetirerFichier()
+    {
+        attachedFile = null;
+        attachedFileName = "";
+        uploadedPath = "";
+    }
+
+    private async Task SignalerMessage(int messageId)
+    {
+        await Http.PostAsync($"api/messagerie/messages/{messageId}/signaler", null);
+        await SelectConversation(selectedConvId);
+    }
+
+    private async Task BasculerLu(int messageId, bool estLu)
+    {
+        if (estLu)
+            await Http.PutAsync($"api/messagerie/messages/{messageId}/nonlu/{currentUserId}", null);
+        else
+            await Http.PutAsync($"api/messagerie/messages/{messageId}/lu/{currentUserId}", null);
+        // Mettre à jour localement sans recharger tout
+        var msg = messages?.FirstOrDefault(m => m.IdMessage == messageId);
+        if (msg != null)
+        {
+            msg.EstLu = !estLu;
+            await ChargerConversations(); // màj badge non-lus
+            StateHasChanged();
+        }
+    }
+
+    // ── Modale nouvelle conversation ──────────────────────────────────
+
+    private async Task OuvrirNouvelleConversation()
+    {
+        selectedUserIds.Clear();
+        newConvSujet = "";
+        newConvType = "Individuelle";
+        groupeMessage = "";
+        annonceMessage = "";
+        selectedGroupeId = 0;
+        userSearch = "";
+        userRoleFilter = "";
+        showNewConvModal = true;
+
+        if (allUsers == null)
+        {
+            allUsers = await Http.GetFromJsonAsync<List<UtilisateurSimpleDto>>($"api/messagerie/users/{currentUserId}");
+        }
+        if (role == "ENSEIGNANT" && groupes == null)
+        {
+            groupes = await Http.GetFromJsonAsync<List<GroupeSimpleDto>>("api/messagerie/groupes");
+        }
+    }
+
+    private void FermerModal() => showNewConvModal = false;
+    private void FermerGroupeModal() => showGroupeEnseignantModal = false;
+
+    private async Task OuvrirMessageGroupe()
+    {
+        selectedGroupeId = 0;
+        groupeMessage = "";
+        if (groupes == null)
+            groupes = await Http.GetFromJsonAsync<List<GroupeSimpleDto>>("api/messagerie/groupes");
+        showGroupeEnseignantModal = true;
+    }
+
+    private void ToggleUser(int uid, bool selected)
+    {
+        if (selected) selectedUserIds.Add(uid);
+        else selectedUserIds.Remove(uid);
+    }
+
+    private async Task CreerConversation()
+    {
+        if (!selectedUserIds.Any() || string.IsNullOrWhiteSpace(newConvSujet)) return;
+
+        // Type auto-détecté selon le nombre de destinataires
+        var type = selectedUserIds.Count == 1 ? "Individuelle" : "Groupe";
+
+        var req = new
+        {
+            CreatorId = currentUserId,
+            Sujet = newConvSujet,
+            Type = type,
+            ParticipantIds = selectedUserIds.ToList()
+        };
+        var resp = await Http.PostAsJsonAsync("api/messagerie/conversations", req);
+        if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            // Session expirée: userId localStorage est obsolète → forcer reconnexion
+            alertMsg = "Session expirée. Veuillez vous reconnecter.";
+            isError = true;
+            showNewConvModal = false;
+            await Task.Delay(1500);
+            Navigation.NavigateTo("/login");
+            return;
+        }
+        if (resp.IsSuccessStatusCode)
+        {
+            var result = await resp.Content.ReadFromJsonAsync<IdResult>();
+            showNewConvModal = false;
+            await ChargerConversations();
+            if (result != null) await SelectConversation(result.IdConversation);
+        }
+        else
+        {
+            alertMsg = "Erreur lors de la création de la conversation."; isError = true;
+        }
+    }
+
+    private async Task EnvoyerAuGroupe()
+    {
+        if (selectedGroupeId == 0 || string.IsNullOrWhiteSpace(groupeMessage)) return;
+        var req = new
+        {
+            EnseignantId = currentUserId,
+            GroupeId = selectedGroupeId,
+            Sujet = $"Message au groupe",
+            Contenu = groupeMessage
+        };
+        var resp = await Http.PostAsJsonAsync("api/messagerie/groupe-cours", req);
+        if (resp.IsSuccessStatusCode)
+        {
+            var result = await resp.Content.ReadFromJsonAsync<IdResult>();
+            showNewConvModal = false;
+            showGroupeEnseignantModal = false;
+            alertMsg = "Message envoyé au groupe.";
+            await ChargerConversations();
+            if (result != null) await SelectConversation(result.IdConversation);
+        }
+        else
+        {
+            alertMsg = "Erreur lors de l'envoi."; isError = true;
+        }
+    }
+
+    private async Task EnvoyerAnnonce()
+    {
+        // Méthode conservée pour compatibilité - utiliser EnvoyerAnnonceAdmin
+        await EnvoyerAnnonceAdmin();
+    }
+
+    private void OuvrirAnnonceModal()
+    {
+        annonceSujet = "📢 Annonce officielle";
+        annonceMessage = "";
+        annonceCible = "TOUS";
+        showAnnonceModal = true;
+    }
+
+    private void FermerAnnonceModal() => showAnnonceModal = false;
+
+    private async Task EnvoyerAnnonceAdmin()
+    {
+        if (string.IsNullOrWhiteSpace(annonceSujet) || string.IsNullOrWhiteSpace(annonceMessage)) return;
+        var req = new
+        {
+            AdminId = currentUserId,
+            Sujet = annonceSujet,
+            Contenu = annonceMessage,
+            Cible = annonceCible
+        };
+        var resp = await Http.PostAsJsonAsync("api/messagerie/annonce", req);
+        if (resp.IsSuccessStatusCode)
+        {
+            showAnnonceModal = false;
+            isError = false;
+            var cibleLabel = annonceCible switch
+            {
+                "ENSEIGNANTS" => "aux enseignants",
+                "ELEVES" => "aux élèves",
+                _ => "à tous les utilisateurs"
+            };
+            alertMsg = $"📢 Annonce envoyée {cibleLabel}.";
+            await ChargerConversations();
+        }
+        else
+        {
+            alertMsg = "Erreur lors de l'envoi de l'annonce."; isError = true;
+        }
+    }
+
+    // ── DTOs locaux ──────────────────────────────────────────────────────
+
+    private class ConversationSummaryDto
+    {
+        public int IdConversation { get; set; }
+        public string Sujet { get; set; } = "";
+        public string Type { get; set; } = "";
+        public bool EstAnnonce { get; set; }
+        public DateTime DateCreation { get; set; }
+        public string? DernierMessage { get; set; }
+        public DateTime? DateDernierMessage { get; set; }
+        public int NombreNonLus { get; set; }
+        public List<ParticipantDto> Participants { get; set; } = new();
+    }
+
+    private class ParticipantDto
+    {
+        public int IdUtilisateur { get; set; }
+        public string Nom { get; set; } = "";
+    }
+
+    private class MessageDto
+    {
+        public int IdMessage { get; set; }
+        public string Contenu { get; set; } = "";
+        public DateTime DateEnvoi { get; set; }
+        public int IdExpediteur { get; set; }
+        public string NomExpediteur { get; set; } = "";
+        public string? PieceJointeNom { get; set; }
+        public string? PieceJointePath { get; set; }
+        public bool EstSignale { get; set; }
+        public bool EstLu { get; set; }
+    }
+
+    private class UtilisateurSimpleDto
+    {
+        public int IdUtilisateur { get; set; }
+        public string Nom { get; set; } = "";
+        public string Role { get; set; } = "";
+    }
+
+    private class GroupeSimpleDto
+    {
+        public int IdGroupe { get; set; }
+        public string Nom { get; set; } = "";
+    }
+
+    private class IdResult
+    {
+        public int IdConversation { get; set; }
+    }
+
+    private class UploadResult
+    {
+        public string Path { get; set; } = "";
+        public string Nom { get; set; } = "";
+    }
+}

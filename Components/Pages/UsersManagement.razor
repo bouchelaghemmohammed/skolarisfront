@@ -16,6 +16,9 @@ else
             <h2 class="sk-dossier-name">Gestion des utilisateurs</h2>
             <p class="sk-dossier-sub">Administration — Comptes, rôles et accès</p>
         </div>
+        <div style="margin-left:auto;">
+            <button class="sk-btn sk-btn-primary" @onclick="OuvrirCreerUtilisateur">+ Ajouter utilisateur</button>
+        </div>
     </div>
 
     <div class="sk-stats-row">
@@ -83,7 +86,8 @@ else
                                     <option value="ENSEIGNANT">ENSEIGNANT</option>
                                     <option value="ELEVE">ELEVE</option>
                                 </select>
-                                <button class="sk-btn sk-btn-sm sk-btn-primary" @onclick="() => ChangeRole(user)">Appliquer</button>
+                                <button class="sk-btn sk-btn-sm sk-btn-primary"
+                                        @onclick="() => ChangeRole(user)">Appliquer</button>
                             </div>
                         </td>
                         <td>
@@ -93,7 +97,8 @@ else
                         </td>
                         <td class="sk-actions">
                             <button class="sk-btn sk-btn-sm sk-btn-outline" @onclick="() => OpenEdit(user)">Modifier</button>
-                            <button class="sk-btn sk-btn-sm @(user.IsActive ? "sk-btn-warning" : "sk-btn-success")" @onclick="() => ToggleActive(user.Id)">
+                            <button class="sk-btn sk-btn-sm @(user.IsActive ? "sk-btn-warning" : "sk-btn-success")"
+                                    @onclick="() => ToggleActive(user.Id)">
                                 @(user.IsActive ? "Désactiver" : "Activer")
                             </button>
                         </td>
@@ -116,11 +121,57 @@ else
             </div>
         </div>
     }
+
+    @if (showCreateModal)
+    {
+        <div class="sk-modal-overlay" @onclick="FermerCreerModal">
+            <div class="sk-modal" @onclick:stopPropagation>
+                <div class="sk-modal-header">
+                    <h3>Nouvel utilisateur</h3>
+                    <button class="sk-modal-close" @onclick="FermerCreerModal">✕</button>
+                </div>
+                <div class="sk-modal-body">
+                    <div class="sk-form-group">
+                        <label>Prénom</label>
+                        <input class="sk-input" @bind="createPrenom" placeholder="Prénom" />
+                    </div>
+                    <div class="sk-form-group">
+                        <label>Nom *</label>
+                        <input class="sk-input" @bind="createNom" placeholder="Nom" />
+                    </div>
+                    <div class="sk-form-group">
+                        <label>Courriel *</label>
+                        <input class="sk-input" type="email" @bind="createEmail" placeholder="email@exemple.com" />
+                    </div>
+                    <div class="sk-form-group">
+                        <label>Mot de passe *</label>
+                        <input class="sk-input" type="password" @bind="createMotDePasse" placeholder="••••••••" />
+                    </div>
+                    <div class="sk-form-group">
+                        <label>Rôle</label>
+                        <select class="sk-input" @bind="createRole">
+                            <option value="ELEVE">ÉLÈVE</option>
+                            <option value="ENSEIGNANT">ENSEIGNANT</option>
+                            <option value="ADMIN">ADMIN</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="sk-modal-footer">
+                    <button class="sk-btn sk-btn-outline" @onclick="FermerCreerModal">Annuler</button>
+                    <button class="sk-btn sk-btn-primary" @onclick="SaveCreateUser"
+                            disabled="@(string.IsNullOrWhiteSpace(createNom) || string.IsNullOrWhiteSpace(createEmail) || string.IsNullOrWhiteSpace(createMotDePasse))">
+                        Créer
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 <div class="mt-4">
-    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>← Retour au tableau de bord</button>
-</div>
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>← Retour au tableau
+        de bord</button>
+    </div>
 
 @code {
     private List<UserItem> users = new();
@@ -132,6 +183,14 @@ else
     private string editUserPrenom = "";
     private string editUserNom = "";
     private string editUserEmail = "";
+
+    // Création d'utilisateur
+    private bool showCreateModal = false;
+    private string createPrenom = "";
+    private string createNom = "";
+    private string createEmail = "";
+    private string createMotDePasse = "";
+    private string createRole = "ELEVE";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -163,7 +222,10 @@ else
     {
         errorMessage = "";
         successMessage = "";
-        var response = await Http.PostAsJsonAsync($"api/users/{user.Id}/change-role", new ChangeRoleRequest { Role = user.Role });
+        var response = await Http.PostAsJsonAsync($"api/users/{user.Id}/change-role", new ChangeRoleRequest
+        {
+            Role = user.Role
+        });
         if (!response.IsSuccessStatusCode) { errorMessage = "Impossible de modifier le rôle."; return; }
         successMessage = "✅ Rôle mis à jour.";
         await LoadUsers();
@@ -183,12 +245,58 @@ else
 
     private void CancelEdit() => editUser = null;
 
+    private void OuvrirCreerUtilisateur()
+    {
+        errorMessage = "";
+        successMessage = "";
+        createPrenom = "";
+        createNom = "";
+        createEmail = "";
+        createMotDePasse = "";
+        createRole = "ELEVE";
+        showCreateModal = true;
+    }
+
+    private void FermerCreerModal() => showCreateModal = false;
+
+    private async Task SaveCreateUser()
+    {
+        errorMessage = "";
+        successMessage = "";
+        var body = new
+        {
+            Prenom = createPrenom,
+            Nom = createNom,
+            Email = createEmail,
+            Role = createRole,
+            MotDePasse =
+createMotDePasse
+        };
+        var res = await Http.PostAsJsonAsync("api/users", body);
+        if (res.IsSuccessStatusCode)
+        {
+            successMessage = "✅ Utilisateur créé.";
+            showCreateModal = false;
+            await LoadUsers();
+            StateHasChanged();
+        }
+        else
+        {
+            errorMessage = await res.Content.ReadAsStringAsync();
+        }
+    }
+
     private async Task SaveEdit()
     {
         if (editUser == null) return;
         errorMessage = "";
         successMessage = "";
-        var res = await Http.PutAsJsonAsync($"api/profile/{editUser.Id}", new { Prenom = editUserPrenom, Nom = editUserNom, Email = editUserEmail });
+        var res = await Http.PutAsJsonAsync($"api/profile/{editUser.Id}", new
+        {
+            Prenom = editUserPrenom,
+            Nom = editUserNom,
+            Email = editUserEmail
+        });
         if (res.IsSuccessStatusCode)
         {
             successMessage = "✅ Profil mis à jour.";
@@ -204,10 +312,10 @@ else
 
     private string GetRoleClass(string role) => role switch
     {
-        "ADMIN"      => "sk-badge-danger",
+        "ADMIN" => "sk-badge-danger",
         "ENSEIGNANT" => "sk-badge-info",
-        "ELEVE"      => "sk-badge-accent",
-        _            => "sk-badge-info"
+        "ELEVE" => "sk-badge-accent",
+        _ => "sk-badge-info"
     };
 
     public class UserItem

@@ -1,0 +1,130 @@
+@page "/admin/moderation-messages"
+@rendermode InteractiveServer
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="sk-page-header">
+    <div>
+        <h2 class="sk-page-title">🛡️ Modération des messages</h2>
+        <p style="color:var(--grey-500);margin:0;font-size:14px;">Messages signalés par les utilisateurs</p>
+    </div>
+    <button class="sk-btn sk-btn-outline" @onclick='() => Navigation.NavigateTo("/dashboard-admin")'>
+        ← Tableau de bord
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(alertMsg))
+{
+    <div class="sk-alert @(isError ? "sk-alert-danger" : "sk-alert-success")" style="margin-bottom:16px;">@alertMsg</div>
+}
+
+@if (messages == null)
+{
+    <div class="sk-loading">Chargement...</div>
+}
+else if (!messages.Any())
+{
+    <div class="sk-empty">Aucun message signalé. L'environnement est sain ✅</div>
+}
+else
+{
+    <div class="sk-section-title">@messages.Count message(s) signalé(s)</div>
+
+    <div class="sk-table-wrapper">
+        <table class="sk-table">
+            <thead>
+                <tr>
+                    <th>Expéditeur</th>
+                    <th>Conversation</th>
+                    <th>Contenu</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var msg in messages)
+                {
+                    <tr>
+                        <td><strong>@msg.NomExpediteur</strong></td>
+                        <td>@msg.SujetConversation</td>
+                        <td style="max-width:300px;word-break:break-word;">
+                            @(msg.Contenu.Length > 120 ? msg.Contenu.Substring(0, 120) + "…" : msg.Contenu)
+                        </td>
+                        <td style="white-space:nowrap;">@msg.DateEnvoi.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>
+                            <div style="display:flex;gap:6px;">
+                                <button class="sk-btn sk-btn-success sk-btn-sm" @onclick="() => LeverSignalement(msg.IdMessage)">
+                                    ✓ Lever
+                                </button>
+                                <button class="sk-btn sk-btn-danger sk-btn-sm" @onclick="() => SupprimerMessage(msg.IdMessage)">
+                                    🗑 Supprimer
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<MessageSignaleDto>? messages;
+    private string alertMsg = "";
+    private bool isError = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var r = await JS.InvokeAsync<string>("localStorage.getItem", "role") ?? "";
+            if (r != "ADMIN") { Navigation.NavigateTo("/login"); return; }
+            await ChargerMessages();
+            StateHasChanged();
+        }
+    }
+
+    private async Task ChargerMessages()
+    {
+        var result = await Http.GetFromJsonAsync<List<MessageSignaleDto>>("api/messagerie/messages/signales");
+        messages = result ?? new List<MessageSignaleDto>();
+    }
+
+    private async Task LeverSignalement(int messageId)
+    {
+        var resp = await Http.PutAsync($"api/messagerie/messages/{messageId}/lever-signalement", null);
+        if (resp.IsSuccessStatusCode)
+        {
+            alertMsg = "Signalement levé."; isError = false;
+            await ChargerMessages();
+        }
+    }
+
+    private async Task SupprimerMessage(int messageId)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Supprimer définitivement ce message ?");
+        if (!confirmed) return;
+
+        var resp = await Http.DeleteAsync($"api/messagerie/messages/{messageId}");
+        if (resp.IsSuccessStatusCode)
+        {
+            alertMsg = "Message supprimé."; isError = false;
+            await ChargerMessages();
+        }
+        else
+        {
+            alertMsg = "Erreur lors de la suppression."; isError = true;
+        }
+    }
+
+    private class MessageSignaleDto
+    {
+        public int IdMessage { get; set; }
+        public string Contenu { get; set; } = "";
+        public DateTime DateEnvoi { get; set; }
+        public string NomExpediteur { get; set; } = "";
+        public string SujetConversation { get; set; } = "";
+    }
+}

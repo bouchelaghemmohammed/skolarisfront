@@ -878,3 +878,400 @@ body {
 .mt-4  { margin-top: 24px; }
 .mt-3  { margin-top: 16px; }
 .mt-2  { margin-top: 10px; }
+
+/* ============================================
+   MESSAGERIE
+   ============================================ */
+
+/* Badge non-lu dans la nav */
+.sk-nav-badge {
+    margin-left: auto;
+    background: var(--red-500);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 2px 7px;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* Layout chat */
+.sk-chat-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 0;
+    height: calc(100vh - 200px);
+    min-height: 400px;
+    background: white;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    border: 1px solid var(--blue-100);
+}
+
+/* Sidebar conversations */
+.sk-chat-sidebar {
+    border-right: 1px solid var(--blue-100);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    background: var(--grey-50);
+}
+
+.sk-chat-conv-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.sk-chat-search {
+    padding: 12px;
+    border-bottom: 1px solid var(--blue-100);
+    background: white;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    flex-shrink: 0;
+}
+
+.sk-chat-conv-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--grey-100);
+    transition: background 0.12s;
+}
+
+.sk-chat-conv-item:hover {
+    background: var(--blue-50);
+}
+
+.sk-chat-conv-active {
+    background: var(--blue-50);
+    border-left: 3px solid var(--blue-600);
+}
+
+.sk-chat-conv-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--blue-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.sk-chat-conv-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.sk-chat-conv-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue-900);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sk-chat-conv-preview {
+    font-size: 12px;
+    color: var(--grey-500);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sk-chat-badge {
+    background: var(--blue-600);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 2px 7px;
+    min-width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* Panneau principal */
+.sk-chat-main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sk-chat-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--blue-100);
+    background: white;
+    font-size: 15px;
+    color: var(--blue-900);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.sk-chat-header-actions {
+    font-size: 12px;
+    color: var(--grey-500);
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sk-chat-empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--grey-500);
+    font-size: 15px;
+    gap: 12px;
+    background: var(--grey-50);
+}
+
+/* Zone messages */
+.sk-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #f4f8fd;
+}
+
+.sk-msg-row {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.sk-msg-row-mine {
+    justify-content: flex-end;
+}
+
+.sk-msg-bubble {
+    max-width: 65%;
+    background: white;
+    border-radius: 14px 14px 14px 2px;
+    padding: 10px 14px;
+    box-shadow: 0 1px 4px rgba(21,101,192,0.10);
+    border: 1px solid var(--blue-100);
+}
+
+.sk-msg-bubble-mine {
+    background: var(--blue-700);
+    color: white;
+    border-radius: 14px 14px 2px 14px;
+    border: none;
+}
+
+.sk-msg-sender {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--blue-500);
+    margin-bottom: 3px;
+}
+
+.sk-msg-text {
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.sk-msg-attachment {
+    margin-top: 6px;
+}
+
+.sk-msg-attachment-link {
+    font-size: 13px;
+    color: var(--blue-600);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--blue-200);
+    border-radius: 6px;
+    background: var(--blue-50);
+    transition: background 0.12s;
+}
+
+.sk-msg-attachment-link:hover {
+    background: var(--blue-100);
+}
+
+.sk-msg-bubble-mine .sk-msg-attachment-link {
+    color: white;
+    border-color: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.15);
+}
+
+.sk-msg-time {
+    font-size: 10px;
+    color: var(--grey-500);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sk-msg-bubble-mine .sk-msg-time {
+    color: rgba(255,255,255,0.65);
+    justify-content: flex-end;
+}
+
+.sk-msg-flag-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--grey-500);
+    padding: 0 3px;
+    opacity: 0.6;
+    transition: opacity 0.12s;
+}
+
+.sk-msg-flag-btn:hover {
+    opacity: 1;
+    color: var(--orange-500);
+}
+
+/* Zone de saisie */
+.sk-chat-input-area {
+    border-top: 1px solid var(--blue-100);
+    padding: 12px 16px;
+    background: white;
+    flex-shrink: 0;
+}
+
+.sk-chat-attachment-preview {
+    font-size: 12px;
+    color: var(--blue-700);
+    background: var(--blue-50);
+    border: 1px solid var(--blue-200);
+    border-radius: 6px;
+    padding: 4px 10px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.sk-chat-input-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.sk-chat-textarea {
+    flex: 1;
+    border: 1.5px solid var(--blue-100);
+    border-radius: 10px;
+    padding: 10px 13px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: none;
+    outline: none;
+    transition: border-color 0.15s;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.sk-chat-textarea:focus {
+    border-color: var(--blue-400);
+    box-shadow: 0 0 0 3px rgba(33,150,243,0.08);
+}
+
+/* Sélection utilisateurs pour nouvelle conversation */
+.sk-user-select-list {
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1.5px solid var(--blue-100);
+    border-radius: 8px;
+    background: var(--grey-50);
+}
+
+.sk-user-select-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 13px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--grey-100);
+    font-size: 13px;
+    transition: background 0.12s;
+}
+
+.sk-user-select-item:last-child {
+    border-bottom: none;
+}
+
+.sk-user-select-item:hover {
+    background: var(--blue-50);
+}
+
+.sk-user-select-name {
+    flex: 1;
+    font-weight: 500;
+    color: var(--blue-900);
+}
+
+.sk-user-select-role {
+    font-size: 11px;
+    color: var(--grey-500);
+    background: var(--grey-100);
+    padding: 2px 7px;
+    border-radius: 10px;
+}
+
+/* Carte messagerie pour les dashboards */
+.sk-card {
+    background: white;
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--blue-100);
+    margin-bottom: 20px;
+}
+
+/* Chips de sélection utilisateurs */
+.sk-user-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--blue-100);
+    color: var(--blue-800);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 8px 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--blue-200);
+}
+
+.sk-user-chip-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--blue-600);
+    font-size: 11px;
+    padding: 0 2px;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.12s;
+}
+
+.sk-user-chip-remove:hover {
+    opacity: 1;
+    color: var(--red-600, #e53935);
+}

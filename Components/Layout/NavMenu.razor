@@ -1,5 +1,6 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject HttpClient Http
 
 <div class="sk-sidebar-brand" @onclick="GoHome">
     <div class="sk-sidebar-logo">S</div>
@@ -57,6 +58,22 @@
             <span>Absences</span>
         </div>
 
+        <div class="sk-nav-section">Messagerie</div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/messagerie")'>
+            <span class="sk-nav-icon">💬</span>
+            <span>Messagerie</span>
+            @if (nonLuCount > 0)
+            {
+                <span class="sk-nav-badge">@nonLuCount</span>
+            }
+        </div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/moderation-messages")'>
+            <span class="sk-nav-icon">🛡️</span>
+            <span>Modération</span>
+        </div>
+
     }
     @if (role == "ENSEIGNANT")
     {
@@ -70,6 +87,17 @@
         <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/enseignant/notes")'>
             <span class="sk-nav-icon">📝</span>
             <span>Saisie des notes</span>
+        </div>
+
+        <div class="sk-nav-section">Messagerie</div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/messagerie")'>
+            <span class="sk-nav-icon">💬</span>
+            <span>Messagerie</span>
+            @if (nonLuCount > 0)
+            {
+                <span class="sk-nav-badge">@nonLuCount</span>
+            }
         </div>
     }
 
@@ -90,20 +118,57 @@
             <span class="sk-nav-icon">📝</span>
             <span>Notes & bulletins</span>
         </div>
+
+        <div class="sk-nav-section">Messagerie</div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/messagerie")'>
+            <span class="sk-nav-icon">💬</span>
+            <span>Messagerie</span>
+            @if (nonLuCount > 0)
+            {
+                <span class="sk-nav-badge">@nonLuCount</span>
+            }
+        </div>
     }
 
 </nav>
 
 @code {
     private string role = "";
+    private int currentUserId = 0;
+    private int nonLuCount = 0;
+    private System.Threading.Timer? _timer;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             role = await JS.InvokeAsync<string>("localStorage.getItem", "role") ?? "";
+            var uid = await JS.InvokeAsync<string>("localStorage.getItem", "userId") ?? "0";
+            int.TryParse(uid, out currentUserId);
             StateHasChanged();
+
+            if (currentUserId > 0)
+            {
+                await RefreshNonLu();
+                // Rafraîchir le badge toutes les 30 secondes
+                _timer = new System.Threading.Timer(async _ =>
+                {
+                    await RefreshNonLu();
+                    await InvokeAsync(StateHasChanged);
+                }, null, 30000, 30000);
+            }
         }
+    }
+
+    private async Task RefreshNonLu()
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<NonLuResult>($"api/messagerie/nonlu/{currentUserId}");
+            nonLuCount = result?.Count ?? 0;
+        }
+        catch { }
     }
 
     private void GoHome()
@@ -116,5 +181,10 @@
             Navigation.NavigateTo("/dashboard-eleve");
         else
             Navigation.NavigateTo("/login");
+    }
+
+    private class NonLuResult
+    {
+        public int Count { get; set; }
     }
 }
