@@ -58,6 +58,16 @@
             <span>Absences</span>
         </div>
 
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/bulletins")'>
+            <span class="sk-nav-icon">📄</span>
+            <span>Bulletins</span>
+        </div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/admin/grilles")'>
+            <span class="sk-nav-icon">📋</span>
+            <span>Grilles d'évaluation</span>
+        </div>
+
         <div class="sk-nav-section">Messagerie</div>
 
         <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/messagerie")'>
@@ -87,6 +97,11 @@
         <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/enseignant/notes")'>
             <span class="sk-nav-icon">📝</span>
             <span>Saisie des notes</span>
+        </div>
+
+        <div class="sk-nav-item" @onclick='() => Navigation.NavigateTo("/enseignant/statistiques")'>
+            <span class="sk-nav-icon">📊</span>
+            <span>Statistiques de classe</span>
         </div>
 
         <div class="sk-nav-section">Messagerie</div>
