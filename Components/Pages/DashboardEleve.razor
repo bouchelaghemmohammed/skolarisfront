@@ -28,10 +28,10 @@
         <div class="sk-action-title">Mon horaire</div>
         <div class="sk-action-desc coming-soon">Bientôt disponible</div>
     </div>
-    <div class="sk-action-card sk-action-card-soon">
+    <div class="sk-action-card" @onclick="GoNotes">
         <div class="sk-action-icon">📝</div>
         <div class="sk-action-title">Mes notes</div>
-        <div class="sk-action-desc coming-soon">Bientôt disponible</div>
+        <div class="sk-action-desc">Consulter mes notes et mes bulletins</div>
     </div>
     <div class="sk-action-card" @onclick="GoAbsences">
         <div class="sk-action-icon">📋</div>
@@ -63,4 +63,5 @@
 
     private void GoDossier() => Navigation.NavigateTo("/dossier-academique");
     private void GoAbsences() => Navigation.NavigateTo("/eleve/absences");
+    private void GoNotes() => Navigation.NavigateTo("/eleve/notes");
 }
