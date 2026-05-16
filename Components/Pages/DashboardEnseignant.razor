@@ -28,10 +28,15 @@
         <div class="sk-action-title">Mon horaire</div>
         <div class="sk-action-desc coming-soon">Bientôt disponible</div>
     </div>
-    <div class="sk-action-card sk-action-card-soon">
+    <div class="sk-action-card" @onclick="GoNotes">
         <div class="sk-action-icon">📝</div>
         <div class="sk-action-title">Notes</div>
-        <div class="sk-action-desc coming-soon">Bientôt disponible</div>
+        <div class="sk-action-desc">Saisir et modifier les notes de mes élèves</div>
+    </div>
+    <div class="sk-action-card" @onclick="GoStatistiques">
+        <div class="sk-action-icon">📊</div>
+        <div class="sk-action-title">Statistiques de classe</div>
+        <div class="sk-action-desc">Moyenne, médiane et distribution par cours</div>
     </div>
     <div class="sk-action-card sk-action-card-soon">
         <div class="sk-action-icon">💬</div>
@@ -62,4 +67,6 @@
     }
 
     private void GoAbsences() => Navigation.NavigateTo("/enseignant/absences");
+    private void GoNotes() => Navigation.NavigateTo("/enseignant/notes");
+    private void GoStatistiques() => Navigation.NavigateTo("/enseignant/statistiques");
 }
